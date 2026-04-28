@@ -163,7 +163,7 @@
       return grad;
     }
 
-    function buildDualChart(canvasId, labels, valuesA, valuesB, tooltipFn) {
+    function buildDualChart(canvasId, labels, valuesA, valuesB, tooltipFnA, tooltipFnB) {
       const ctx = document.getElementById(canvasId).getContext("2d");
 
       new Chart(ctx, {
@@ -183,6 +183,7 @@
               pointHoverRadius: 4,
               pointHoverBackgroundColor: ETH_COLOR,
               spanGaps: false,
+              yAxisID: "yEth",
             },
             {
               label: "Solana",
@@ -196,6 +197,7 @@
               pointHoverRadius: 4,
               pointHoverBackgroundColor: SOL_COLOR,
               spanGaps: false,
+              yAxisID: "ySol",
             },
           ],
         },
@@ -215,7 +217,8 @@
               callbacks: {
                 label: (ctx) => {
                   if (ctx.parsed.y === null) return null;
-                  return `${ctx.dataset.label} : ${tooltipFn(ctx.parsed.y)}`;
+                  const fn = ctx.dataset.label === "Ethereum" ? tooltipFnA : tooltipFnB;
+                  return `${ctx.dataset.label} : ${fn(ctx.parsed.y)}`;
                 },
               },
             },
@@ -225,9 +228,16 @@
               ticks: { color: "#8b949e", maxTicksLimit: 8, maxRotation: 0 },
               grid: { color: "#21262d" },
             },
-            y: {
-              ticks: { color: "#8b949e" },
+            yEth: {
+              position: "left",
+              ticks: { color: ETH_COLOR, callback: (v) => tooltipFnA(v) },
               grid: { color: "#21262d" },
+              beginAtZero: false,
+            },
+            ySol: {
+              position: "right",
+              ticks: { color: SOL_COLOR, callback: (v) => tooltipFnB(v) },
+              grid: { drawOnChartArea: false },
               beginAtZero: false,
             },
           },
@@ -251,11 +261,11 @@
         ]);
 
         const mcap = mergeOnDates(ethMcap, solMcap, "marketcap", "marketcap");
-        buildDualChart("chart-mcap", mcap.labels, mcap.valuesA, mcap.valuesB, formatUSD);
+        buildDualChart("chart-mcap", mcap.labels, mcap.valuesA, mcap.valuesB, formatUSD, formatUSD);
 
+        const fmtHolders = v => v.toLocaleString("fr-FR") + " holders";
         const holders = mergeOnDates(ethHolders, solHolders, "holders", "holders");
-        buildDualChart("chart-holders", holders.labels, holders.valuesA, holders.valuesB,
-          v => v.toLocaleString("fr-FR") + " holders");
+        buildDualChart("chart-holders", holders.labels, holders.valuesA, holders.valuesB, fmtHolders, fmtHolders);
 
         document.getElementById("last-updated").textContent =
           "Dernière mise à jour : " + new Date().toLocaleString("fr-FR", { timeZone: "UTC" }) + " UTC";
