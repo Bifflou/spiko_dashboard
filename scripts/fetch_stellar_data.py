@@ -5,10 +5,12 @@ import time
 from datetime import datetime, timezone
 from collections import defaultdict
 
-ISSUER     = "GCEYGIVOLAVBF2TG2RUSGTUJCIN75KEX3NGLMY4VPL4GFE5L355AXW3G"
-ASSET_CODE = "EURCV"
-HORIZON    = "https://horizon.stellar.org"
-EXPERT     = f"https://api.stellar.expert/explorer/public/asset/{ASSET_CODE}-{ISSUER}"
+ISSUER       = "GCEYGIVOLAVBF2TG2RUSGTUJCIN75KEX3NGLMY4VPL4GFE5L355AXW3G"
+ASSET_CODE   = "EURCV"
+HORIZON      = "https://horizon.stellar.org"
+EXPERT_BASE  = "https://api.stellar.expert"
+EXPERT       = f"{EXPERT_BASE}/explorer/public/asset/{ASSET_CODE}-{ISSUER}"
+STELLAR_SCALE = 10 ** 7  # stellar.expert balances are in raw units (7 decimal places)
 
 
 def iso_to_date(iso):
@@ -16,31 +18,47 @@ def iso_to_date(iso):
 
 
 # ── Current state ─────────────────────────────────────────────────────────────
+#
+# Horizon /assets.amount is unreliable for this asset (returns 0 despite active
+# holders). We use stellar.expert /holders instead: paginate all records, sum
+# balances > 0 for circulating supply, count them for holders.
 
-def get_current_supply():
-    """Horizon /assets — authoritative circulating supply."""
-    resp = requests.get(
-        f"{HORIZON}/assets",
-        params={"asset_code": ASSET_CODE, "asset_issuer": ISSUER},
-        timeout=30,
-    )
-    resp.raise_for_status()
-    records = resp.json().get("_embedded", {}).get("records", [])
-    if not records:
-        raise RuntimeError(f"Asset {ASSET_CODE} not found on Stellar Horizon")
-    return float(records[0].get("amount", 0))
+def get_circulating_supply_and_holders():
+    """stellar.expert /holders — sum(balance) = circulating supply, count = holders."""
+    total_supply = 0.0
+    holder_count = 0
+    url = f"{EXPERT}/holders"
+    first = True
+    page = 1
 
+    while True:
+        resp = requests.get(url, timeout=30)
+        resp.raise_for_status()
+        data = resp.json()
+        records = data.get("_embedded", {}).get("records", [])
 
-def get_current_holders():
-    """stellar.expert /holders — accounts with balance > 0."""
-    resp = requests.get(f"{EXPERT}/holders", timeout=30)
-    resp.raise_for_status()
-    data = resp.json()
-    # Try top-level total_count first, fall back to counting embedded records
-    if "total_count" in data:
-        return int(data["total_count"])
-    records = data.get("_embedded", {}).get("records", [])
-    return len([r for r in records if float(r.get("balance", 0)) > 0])
+        if first and records:
+            print(f"  (sample balance raw: {records[0].get('balance')})")
+            first = False
+
+        for r in records:
+            bal = float(r.get("balance", 0)) / STELLAR_SCALE
+            if bal > 0:
+                total_supply += bal
+                holder_count += 1
+
+        next_href = data.get("_links", {}).get("next", {}).get("href")
+        if not next_href or not records:
+            break
+
+        # next_href from stellar.expert is a relative path
+        if next_href.startswith("/"):
+            next_href = EXPERT_BASE + next_href
+        url = next_href
+        page += 1
+        time.sleep(0.1)
+
+    return round(total_supply, 7), holder_count
 
 
 # ── Historical operations ─────────────────────────────────────────────────────
@@ -161,12 +179,9 @@ def compute_marketcap(supply_history, eur_usd_rates):
 def main():
     os.makedirs("data", exist_ok=True)
 
-    print("Récupération supply actuelle via Horizon assets...")
-    current_supply = get_current_supply()
+    print("Récupération supply + holders via stellar.expert /holders...")
+    current_supply, current_holders = get_circulating_supply_and_holders()
     print(f"  Circulating supply : {current_supply:,.7f} EURCV")
-
-    print("Récupération holders actuels via stellar.expert...")
-    current_holders = get_current_holders()
     print(f"  Holders actifs     : {current_holders}")
 
     print("Récupération des opérations issuer Stellar (Horizon)...")
