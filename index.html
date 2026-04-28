@@ -26,57 +26,32 @@
       color: #8b949e;
     }
 
-    header p span { color: #58a6ff; }
-
-    /* Network tabs */
-    .tabs {
+    .legend {
       display: flex;
-      gap: 0.5rem;
+      gap: 1.25rem;
       margin-bottom: 1.5rem;
     }
 
-    .tab-btn {
-      padding: 0.45rem 1.1rem;
-      border-radius: 6px;
-      border: 1px solid #30363d;
-      background: transparent;
-      color: #8b949e;
-      font-size: 0.85rem;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.15s;
+    .legend-item {
       display: flex;
       align-items: center;
       gap: 0.4rem;
+      font-size: 0.82rem;
+      color: #8b949e;
+      font-weight: 600;
     }
 
-    .tab-btn:hover { border-color: #58a6ff; color: #e6edf3; }
-
-    .tab-btn.active {
-      background: #161b22;
-      border-color: #58a6ff;
-      color: #f0f6fc;
-    }
-
-    .tab-dot {
-      width: 8px;
-      height: 8px;
+    .legend-dot {
+      width: 10px;
+      height: 10px;
       border-radius: 50%;
     }
 
-    /* Network panel */
-    .network-panel { display: none; }
-    .network-panel.active { display: block; }
-
     .grid {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: 1fr;
       gap: 1.5rem;
-      max-width: 1200px;
-    }
-
-    @media (max-width: 768px) {
-      .grid { grid-template-columns: 1fr; }
+      max-width: 1100px;
     }
 
     .card {
@@ -97,7 +72,7 @@
 
     .chart-wrap {
       position: relative;
-      height: 300px;
+      height: 320px;
     }
 
     #last-updated {
@@ -110,63 +85,47 @@
       color: #f85149;
       font-size: 0.85rem;
       padding: 1rem 0;
-      grid-column: 1 / -1;
-    }
-
-    .loading {
-      color: #8b949e;
-      font-size: 0.85rem;
-      padding: 3rem 0;
-      text-align: center;
-      grid-column: 1 / -1;
     }
   </style>
 </head>
 <body>
   <header>
     <h1>EUR CoinVertible (EURCV)</h1>
-    <p>Dashboard · Supply × EUR/USD · Données on-chain</p>
+    <p>Supply × EUR/USD · Données on-chain</p>
   </header>
 
-  <div class="tabs">
-    <button class="tab-btn active" data-network="eth">
-      <span class="tab-dot" style="background:#58a6ff"></span>
+  <div class="legend">
+    <div class="legend-item">
+      <div class="legend-dot" style="background:#58a6ff"></div>
       Ethereum
-    </button>
-    <button class="tab-btn" data-network="sol">
-      <span class="tab-dot" style="background:#9945ff"></span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-dot" style="background:#9945ff"></div>
       Solana
-    </button>
-  </div>
-
-  <!-- Ethereum -->
-  <div class="network-panel active" id="panel-eth">
-    <div class="grid" id="grid-eth">
-      <div class="loading">Chargement…</div>
     </div>
   </div>
 
-  <!-- Solana -->
-  <div class="network-panel" id="panel-sol">
-    <div class="grid" id="grid-sol">
-      <div class="loading">Chargement…</div>
+  <div class="grid">
+    <div class="card">
+      <h2>Market Capitalisation (USD)</h2>
+      <div class="chart-wrap">
+        <canvas id="chart-mcap"></canvas>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Nombre de Holders</h2>
+      <div class="chart-wrap">
+        <canvas id="chart-holders"></canvas>
+      </div>
     </div>
   </div>
 
   <p id="last-updated"></p>
 
   <script>
-    // ── Tab switching ────────────────────────────────────────────────────────
-    document.querySelectorAll(".tab-btn").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        document.querySelectorAll(".tab-btn").forEach((b) => b.classList.remove("active"));
-        document.querySelectorAll(".network-panel").forEach((p) => p.classList.remove("active"));
-        btn.classList.add("active");
-        document.getElementById("panel-" + btn.dataset.network).classList.add("active");
-      });
-    });
+    const ETH_COLOR = "#58a6ff";
+    const SOL_COLOR = "#9945ff";
 
-    // ── Chart helpers ────────────────────────────────────────────────────────
     function formatUSD(v) {
       if (v >= 1e9) return "$" + (v / 1e9).toFixed(2) + "B";
       if (v >= 1e6) return "$" + (v / 1e6).toFixed(2) + "M";
@@ -179,27 +138,66 @@
       return `${d}/${m}/${y}`;
     }
 
-    function buildChart(canvas, labels, values, color, tooltipFn) {
-      const ctx = canvas.getContext("2d");
-      const grad = ctx.createLinearGradient(0, 0, 0, 300);
+    // Merge two date-keyed series onto a unified sorted date axis
+    function mergeOnDates(seriesA, seriesB, keyA, keyB) {
+      const dateSet = new Set([
+        ...seriesA.map(d => d.date),
+        ...seriesB.map(d => d.date),
+      ]);
+      const dates = [...dateSet].sort();
+
+      const mapA = Object.fromEntries(seriesA.map(d => [d.date, d[keyA]]));
+      const mapB = Object.fromEntries(seriesB.map(d => [d.date, d[keyB]]));
+
+      return {
+        labels: dates.map(formatDate),
+        valuesA: dates.map(d => mapA[d] ?? null),
+        valuesB: dates.map(d => mapB[d] ?? null),
+      };
+    }
+
+    function makeGradient(ctx, color) {
+      const grad = ctx.createLinearGradient(0, 0, 0, 320);
       grad.addColorStop(0, color + "33");
       grad.addColorStop(1, color + "00");
+      return grad;
+    }
 
-      return new Chart(ctx, {
+    function buildDualChart(canvasId, labels, valuesA, valuesB, tooltipFn) {
+      const ctx = document.getElementById(canvasId).getContext("2d");
+
+      new Chart(ctx, {
         type: "line",
         data: {
           labels,
-          datasets: [{
-            data: values,
-            borderColor: color,
-            borderWidth: 2,
-            backgroundColor: grad,
-            fill: true,
-            tension: 0.3,
-            pointRadius: 0,
-            pointHoverRadius: 4,
-            pointHoverBackgroundColor: color,
-          }],
+          datasets: [
+            {
+              label: "Ethereum",
+              data: valuesA,
+              borderColor: ETH_COLOR,
+              borderWidth: 2,
+              backgroundColor: makeGradient(ctx, ETH_COLOR),
+              fill: true,
+              tension: 0.3,
+              pointRadius: 0,
+              pointHoverRadius: 4,
+              pointHoverBackgroundColor: ETH_COLOR,
+              spanGaps: false,
+            },
+            {
+              label: "Solana",
+              data: valuesB,
+              borderColor: SOL_COLOR,
+              borderWidth: 2,
+              backgroundColor: makeGradient(ctx, SOL_COLOR),
+              fill: true,
+              tension: 0.3,
+              pointRadius: 0,
+              pointHoverRadius: 4,
+              pointHoverBackgroundColor: SOL_COLOR,
+              spanGaps: false,
+            },
+          ],
         },
         options: {
           responsive: true,
@@ -214,7 +212,12 @@
               titleColor: "#8b949e",
               bodyColor: "#e6edf3",
               padding: 10,
-              callbacks: { label: (ctx) => tooltipFn(ctx.parsed.y) },
+              callbacks: {
+                label: (ctx) => {
+                  if (ctx.parsed.y === null) return null;
+                  return `${ctx.dataset.label} : ${tooltipFn(ctx.parsed.y)}`;
+                },
+              },
             },
           },
           scales: {
@@ -232,69 +235,38 @@
       });
     }
 
-    function renderCharts(gridId, mcapData, holdersData, mcapColor, holdersColor) {
-      const grid = document.getElementById(gridId);
-
-      grid.innerHTML = `
-        <div class="card">
-          <h2>Market Capitalisation (USD)</h2>
-          <div class="chart-wrap"><canvas id="${gridId}-mcap"></canvas></div>
-        </div>
-        <div class="card">
-          <h2>Nombre de Holders</h2>
-          <div class="chart-wrap"><canvas id="${gridId}-holders"></canvas></div>
-        </div>
-      `;
-
-      buildChart(
-        document.getElementById(`${gridId}-mcap`),
-        mcapData.map((d) => formatDate(d.date)),
-        mcapData.map((d) => d.marketcap),
-        mcapColor,
-        (v) => formatUSD(v)
-      );
-
-      buildChart(
-        document.getElementById(`${gridId}-holders`),
-        holdersData.map((d) => formatDate(d.date)),
-        holdersData.map((d) => d.holders),
-        holdersColor,
-        (v) => v.toLocaleString("fr-FR") + " holders"
-      );
+    async function loadJSON(path) {
+      const r = await fetch(path);
+      if (!r.ok) throw new Error(`Impossible de charger ${path}`);
+      return r.json();
     }
 
-    function showError(gridId, msg) {
-      document.getElementById(gridId).innerHTML =
-        `<div class="error">Erreur : ${msg}</div>`;
-    }
-
-    // ── Load data ────────────────────────────────────────────────────────────
-    async function loadNetwork(gridId, mcapPath, holdersPath, mcapColor, holdersColor) {
+    async function init() {
       try {
-        const [mcap, holders] = await Promise.all([
-          fetch(mcapPath).then((r) => { if (!r.ok) throw new Error(mcapPath); return r.json(); }),
-          fetch(holdersPath).then((r) => { if (!r.ok) throw new Error(holdersPath); return r.json(); }),
+        const [ethMcap, ethHolders, solMcap, solHolders] = await Promise.all([
+          loadJSON("data/marketcap.json"),
+          loadJSON("data/holders.json"),
+          loadJSON("data/sol_marketcap.json"),
+          loadJSON("data/sol_holders.json"),
         ]);
 
-        if (!mcap.length && !holders.length) {
-          document.getElementById(gridId).innerHTML =
-            `<div class="loading">Données non encore disponibles — relancez le script de collecte.</div>`;
-          return;
-        }
+        const mcap = mergeOnDates(ethMcap, solMcap, "marketcap", "marketcap");
+        buildDualChart("chart-mcap", mcap.labels, mcap.valuesA, mcap.valuesB, formatUSD);
 
-        renderCharts(gridId, mcap, holders, mcapColor, holdersColor);
+        const holders = mergeOnDates(ethHolders, solHolders, "holders", "holders");
+        buildDualChart("chart-holders", holders.labels, holders.valuesA, holders.valuesB,
+          v => v.toLocaleString("fr-FR") + " holders");
+
+        document.getElementById("last-updated").textContent =
+          "Dernière mise à jour : " + new Date().toLocaleString("fr-FR", { timeZone: "UTC" }) + " UTC";
+
       } catch (err) {
-        showError(gridId, err.message);
+        document.querySelector(".grid").innerHTML =
+          `<div class="error">Erreur : ${err.message}</div>`;
       }
     }
 
-    Promise.all([
-      loadNetwork("grid-eth", "data/marketcap.json", "data/holders.json", "#58a6ff", "#3fb950"),
-      loadNetwork("grid-sol", "data/sol_marketcap.json", "data/sol_holders.json", "#9945ff", "#14f195"),
-    ]).then(() => {
-      document.getElementById("last-updated").textContent =
-        "Dernière mise à jour : " + new Date().toLocaleString("fr-FR", { timeZone: "UTC" }) + " UTC";
-    });
+    init();
   </script>
 </body>
 </html>
