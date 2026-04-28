@@ -17,41 +17,14 @@
     }
 
     header { margin-bottom: 2rem; }
-
     header h1 { font-size: 1.6rem; font-weight: 700; color: #f0f6fc; }
-
-    header p {
-      margin-top: 0.35rem;
-      font-size: 0.85rem;
-      color: #8b949e;
-    }
-
-    .legend {
-      display: flex;
-      gap: 1.25rem;
-      margin-bottom: 1.5rem;
-    }
-
-    .legend-item {
-      display: flex;
-      align-items: center;
-      gap: 0.4rem;
-      font-size: 0.82rem;
-      color: #8b949e;
-      font-weight: 600;
-    }
-
-    .legend-dot {
-      width: 10px;
-      height: 10px;
-      border-radius: 50%;
-    }
+    header p { margin-top: 0.35rem; font-size: 0.85rem; color: #8b949e; }
 
     .grid {
       display: grid;
       grid-template-columns: 1fr;
       gap: 1.5rem;
-      max-width: 1100px;
+      max-width: 1200px;
     }
 
     .card {
@@ -70,210 +43,265 @@
       margin-bottom: 1.25rem;
     }
 
-    .chart-wrap {
-      position: relative;
-      height: 320px;
+    .chart-wrap { position: relative; height: 340px; }
+
+    #last-updated { margin-top: 2rem; font-size: 0.75rem; color: #484f58; }
+
+    /* ── External tooltip ─────────────────────────────────────────── */
+    .chart-tooltip {
+      position: absolute;
+      background: #1c2128;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      padding: 10px 14px;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.1s;
+      min-width: 220px;
+      z-index: 10;
+      font-size: 0.82rem;
     }
 
-    #last-updated {
-      margin-top: 2rem;
-      font-size: 0.75rem;
-      color: #484f58;
+    .tt-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 1.5rem;
+      margin-bottom: 8px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #30363d;
     }
 
-    .error {
-      color: #f85149;
-      font-size: 0.85rem;
-      padding: 1rem 0;
+    .tt-date { color: #8b949e; font-size: 0.78rem; }
+    .tt-total { color: #f0f6fc; font-weight: 700; font-size: 0.9rem; white-space: nowrap; }
+
+    .tt-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 5px;
     }
+
+    .tt-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .tt-label { color: #8b949e; flex: 1; }
+    .tt-value { color: #e6edf3; font-weight: 500; white-space: nowrap; }
   </style>
 </head>
 <body>
   <header>
     <h1>EUR CoinVertible (EURCV)</h1>
-    <p>Supply × EUR/USD · Données on-chain</p>
+    <p>Supply × EUR/USD · Données on-chain · Ethereum + Solana</p>
   </header>
-
-  <div class="legend">
-    <div class="legend-item">
-      <div class="legend-dot" style="background:#58a6ff"></div>
-      Ethereum
-    </div>
-    <div class="legend-item">
-      <div class="legend-dot" style="background:#9945ff"></div>
-      Solana
-    </div>
-  </div>
 
   <div class="grid">
     <div class="card">
       <h2>Market Capitalisation (USD)</h2>
-      <div class="chart-wrap">
-        <canvas id="chart-mcap"></canvas>
-      </div>
+      <div class="chart-wrap"><canvas id="chart-mcap"></canvas></div>
     </div>
     <div class="card">
       <h2>Nombre de Holders</h2>
-      <div class="chart-wrap">
-        <canvas id="chart-holders"></canvas>
-      </div>
+      <div class="chart-wrap"><canvas id="chart-holders"></canvas></div>
     </div>
   </div>
 
   <p id="last-updated"></p>
 
   <script>
-    const ETH_COLOR = "#58a6ff";
-    const SOL_COLOR = "#9945ff";
+    // ── Chain definitions (ordre d'ajout = ordre initial, trié dynamiquement) ──
+    const CHAINS = [
+      { label: 'Ethereum', color: '#627EEA', mcapFile: 'data/marketcap.json',     holdersFile: 'data/holders.json' },
+      { label: 'Solana',   color: '#9945FF', mcapFile: 'data/sol_marketcap.json', holdersFile: 'data/sol_holders.json' },
+    ];
 
-    function formatUSD(v) {
-      if (v >= 1e9) return "$" + (v / 1e9).toFixed(2) + "B";
-      if (v >= 1e6) return "$" + (v / 1e6).toFixed(2) + "M";
-      if (v >= 1e3) return "$" + (v / 1e3).toFixed(0) + "K";
-      return "$" + v.toFixed(0);
+    // ── Formatters ────────────────────────────────────────────────────────────
+    function fmtSpaced(v) {
+      // Space as thousands separator (e.g. 1 250 000)
+      return Math.round(v).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
     }
 
-    function formatDate(s) {
-      const [y, m, d] = s.split("-");
-      return `${d}/${m}/${y}`;
+    function fmtUSD(v) {
+      return '$ ' + fmtSpaced(v);
     }
 
-    // Merge two date-keyed series onto a unified sorted date axis
-    function mergeOnDates(seriesA, seriesB, keyA, keyB) {
-      const dateSet = new Set([
-        ...seriesA.map(d => d.date),
-        ...seriesB.map(d => d.date),
-      ]);
-      const dates = [...dateSet].sort();
+    function fmtAxisUSD(v) {
+      if (v >= 1e9) return '$' + (v / 1e9).toFixed(1) + 'B';
+      if (v >= 1e6) return '$' + (v / 1e6).toFixed(0) + 'M';
+      if (v >= 1e3) return '$' + (v / 1e3).toFixed(0) + 'K';
+      return '$' + v;
+    }
 
-      const mapA = Object.fromEntries(seriesA.map(d => [d.date, d[keyA]]));
-      const mapB = Object.fromEntries(seriesB.map(d => [d.date, d[keyB]]));
+    function fmtDate(s) {
+      const [y, m, d] = s.split('-');
+      return `${d}/${m}/${String(y).slice(2)}`;
+    }
 
-      return {
-        labels: dates.map(formatDate),
-        valuesA: dates.map(d => mapA[d] ?? null),
-        valuesB: dates.map(d => mapB[d] ?? null),
+    // ── Data: union dates + forward-fill + dynamic sort ───────────────────────
+    function buildStacked(seriesArr, valueKey) {
+      // Pair each series with its chain definition and start date
+      const paired = CHAINS.map((chain, i) => ({
+        chain,
+        series: seriesArr[i],
+        startDate: seriesArr[i][0]?.date || '9999-12-31',
+      }));
+
+      // Sort oldest → newest (oldest will go on top visually)
+      paired.sort((a, b) => a.startDate < b.startDate ? -1 : 1);
+
+      // Union of all dates across all chains
+      const dateSet = new Set(paired.flatMap(p => p.series.map(d => d.date)));
+      const allDates = [...dateSet].sort();
+
+      // Forward-fill each chain's values (0 before its start date)
+      const filled = paired.map(({ series, startDate }) => {
+        const map = Object.fromEntries(series.map(d => [d.date, d[valueKey]]));
+        let last = 0;
+        return allDates.map(date => {
+          if (date < startDate) return 0;
+          if (date in map) last = map[date];
+          return last;
+        });
+      });
+
+      return { labels: allDates.map(fmtDate), rawDates: allDates, paired, filled };
+    }
+
+    // ── External tooltip ──────────────────────────────────────────────────────
+    function makeTooltipHandler(fmtVal, paired) {
+      return function({ chart, tooltip }) {
+        let el = chart._ttEl;
+        if (!el) {
+          el = document.createElement('div');
+          el.className = 'chart-tooltip';
+          chart.canvas.parentElement.style.position = 'relative';
+          chart.canvas.parentElement.appendChild(el);
+          chart._ttEl = el;
+        }
+
+        if (tooltip.opacity === 0) { el.style.opacity = '0'; return; }
+
+        const items = tooltip.dataPoints || [];
+        if (!items.length) return;
+
+        const date = items[0].label;
+        const total = items.reduce((s, i) => s + (i.raw || 0), 0);
+
+        // Build rows — match dataset label back to chain color
+        const rows = items.map(item => {
+          const chain = paired.find(p => p.chain.label === item.dataset.label)?.chain || {};
+          return `<div class="tt-row">
+            <div class="tt-dot" style="background:${chain.color || '#888'}"></div>
+            <span class="tt-label">${item.dataset.label}</span>
+            <span class="tt-value">${fmtVal(item.raw || 0)}</span>
+          </div>`;
+        }).join('');
+
+        el.innerHTML = `
+          <div class="tt-header">
+            <span class="tt-date">${date}</span>
+            <span class="tt-total">${fmtVal(total)}</span>
+          </div>
+          ${rows}
+        `;
+
+        // Position — flip left if near right edge
+        const canvasRect = chart.canvas.getBoundingClientRect();
+        const cx = tooltip.caretX;
+        const cy = tooltip.caretY;
+        const ttW = 240;
+
+        el.style.opacity = '1';
+        el.style.top = Math.max(0, cy - 20) + 'px';
+        el.style.left = (cx + ttW + 20 > chart.width ? cx - ttW - 10 : cx + 14) + 'px';
       };
     }
 
-    function makeGradient(ctx, color) {
-      const grad = ctx.createLinearGradient(0, 0, 0, 320);
-      grad.addColorStop(0, color + "33");
-      grad.addColorStop(1, color + "00");
-      return grad;
-    }
+    // ── Chart builder ─────────────────────────────────────────────────────────
+    function buildChart(canvasId, { labels, paired, filled }, fmtVal, fmtAxis) {
+      const ctx = document.getElementById(canvasId).getContext('2d');
 
-    function buildDualChart(canvasId, labels, valuesA, valuesB, tooltipFnA, tooltipFnB) {
-      const ctx = document.getElementById(canvasId).getContext("2d");
+      // Dataset order for Chart.js: newest at index 0 (bottom), oldest last (top)
+      // paired is sorted oldest→newest, so we reverse for dataset array
+      const datasets = [...paired].reverse().map((p, revIdx) => {
+        const origIdx = paired.length - 1 - revIdx;
+        return {
+          label: p.chain.label,
+          data: filled[origIdx],
+          borderColor: p.chain.color,
+          backgroundColor: p.chain.color + 'B3', // ~70% opacity
+          borderWidth: 1.5,
+          fill: true,
+          tension: 0.15,
+          pointRadius: 0,
+          pointHoverRadius: 0,
+        };
+      });
 
       new Chart(ctx, {
-        type: "line",
-        data: {
-          labels,
-          datasets: [
-            {
-              label: "Ethereum",
-              data: valuesA,
-              borderColor: ETH_COLOR,
-              borderWidth: 2,
-              backgroundColor: makeGradient(ctx, ETH_COLOR),
-              fill: true,
-              tension: 0.3,
-              pointRadius: 0,
-              pointHoverRadius: 4,
-              pointHoverBackgroundColor: ETH_COLOR,
-              spanGaps: false,
-              yAxisID: "yEth",
-            },
-            {
-              label: "Solana",
-              data: valuesB,
-              borderColor: SOL_COLOR,
-              borderWidth: 2,
-              backgroundColor: makeGradient(ctx, SOL_COLOR),
-              fill: true,
-              tension: 0.3,
-              pointRadius: 0,
-              pointHoverRadius: 4,
-              pointHoverBackgroundColor: SOL_COLOR,
-              spanGaps: false,
-              yAxisID: "ySol",
-            },
-          ],
-        },
+        type: 'line',
+        data: { labels, datasets },
         options: {
           responsive: true,
           maintainAspectRatio: false,
-          interaction: { mode: "index", intersect: false },
+          interaction: { mode: 'index', intersect: false },
           plugins: {
-            legend: { display: false },
-            tooltip: {
-              backgroundColor: "#1c2128",
-              borderColor: "#30363d",
-              borderWidth: 1,
-              titleColor: "#8b949e",
-              bodyColor: "#e6edf3",
-              padding: 10,
-              callbacks: {
-                label: (ctx) => {
-                  if (ctx.parsed.y === null) return null;
-                  const fn = ctx.dataset.label === "Ethereum" ? tooltipFnA : tooltipFnB;
-                  return `${ctx.dataset.label} : ${fn(ctx.parsed.y)}`;
-                },
+            legend: {
+              display: true,
+              position: 'top',
+              align: 'end',
+              labels: {
+                color: '#8b949e',
+                usePointStyle: true,
+                pointStyle: 'circle',
+                boxWidth: 8,
+                padding: 16,
+                font: { size: 12 },
               },
+            },
+            tooltip: {
+              enabled: false,
+              external: makeTooltipHandler(fmtVal, paired),
             },
           },
           scales: {
             x: {
-              ticks: { color: "#8b949e", maxTicksLimit: 8, maxRotation: 0 },
-              grid: { color: "#21262d" },
+              ticks: { color: '#8b949e', maxTicksLimit: 8, maxRotation: 0 },
+              grid: { color: '#21262d' },
             },
-            yEth: {
-              position: "left",
-              ticks: { color: ETH_COLOR, callback: (v) => tooltipFnA(v) },
-              grid: { color: "#21262d" },
-              beginAtZero: false,
-            },
-            ySol: {
-              position: "right",
-              ticks: { color: SOL_COLOR, callback: (v) => tooltipFnB(v) },
-              grid: { drawOnChartArea: false },
-              beginAtZero: false,
+            y: {
+              stacked: true,
+              beginAtZero: true,
+              ticks: { color: '#8b949e', callback: fmtAxis },
+              grid: { color: '#21262d' },
             },
           },
         },
       });
     }
 
-    async function loadJSON(path) {
-      const r = await fetch(path);
-      if (!r.ok) throw new Error(`Impossible de charger ${path}`);
-      return r.json();
-    }
-
+    // ── Init ──────────────────────────────────────────────────────────────────
     async function init() {
-      try {
-        const [ethMcap, ethHolders, solMcap, solHolders] = await Promise.all([
-          loadJSON("data/marketcap.json"),
-          loadJSON("data/holders.json"),
-          loadJSON("data/sol_marketcap.json"),
-          loadJSON("data/sol_holders.json"),
-        ]);
+      const files = CHAINS.flatMap(c => [c.mcapFile, c.holdersFile]);
+      const results = await Promise.all(
+        files.map(f => fetch(f).then(r => r.ok ? r.json() : []).catch(() => []))
+      );
 
-        const mcap = mergeOnDates(ethMcap, solMcap, "marketcap", "marketcap");
-        buildDualChart("chart-mcap", mcap.labels, mcap.valuesA, mcap.valuesB, formatUSD, formatUSD);
+      const mcapSeries   = CHAINS.map((_, i) => results[i * 2]);
+      const holdersSeries = CHAINS.map((_, i) => results[i * 2 + 1]);
 
-        const fmtHolders = v => v.toLocaleString("fr-FR") + " holders";
-        const holders = mergeOnDates(ethHolders, solHolders, "holders", "holders");
-        buildDualChart("chart-holders", holders.labels, holders.valuesA, holders.valuesB, fmtHolders, fmtHolders);
+      buildChart('chart-mcap',
+        buildStacked(mcapSeries, 'marketcap'),
+        fmtUSD,
+        fmtAxisUSD
+      );
 
-        document.getElementById("last-updated").textContent =
-          "Dernière mise à jour : " + new Date().toLocaleString("fr-FR", { timeZone: "UTC" }) + " UTC";
+      buildChart('chart-holders',
+        buildStacked(holdersSeries, 'holders'),
+        v => fmtSpaced(v) + ' holders',
+        v => fmtSpaced(v)
+      );
 
-      } catch (err) {
-        document.querySelector(".grid").innerHTML =
-          `<div class="error">Erreur : ${err.message}</div>`;
-      }
+      document.getElementById('last-updated').textContent =
+        'Dernière mise à jour : ' + new Date().toLocaleString('fr-FR', { timeZone: 'UTC' }) + ' UTC';
     }
 
     init();
