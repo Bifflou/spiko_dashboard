@@ -30,13 +30,50 @@ def ripple_to_date(ripple_ts):
 
 
 def is_eurcv(amount):
-    """True if this Amount dict is our EURCV currency from this issuer."""
     if not isinstance(amount, dict):
         return False
     return (
         amount.get("currency", "").upper() == CURRENCY_HEX.upper()
         and amount.get("issuer") == ISSUER
     )
+
+
+# ── Current circulating supply + holders via account_lines ────────────────────
+#
+# From the issuer's perspective, balance in a trust line is negative when
+# the issuer owes tokens to the holder (i.e., the holder holds tokens).
+# Circulating supply = sum(abs(balance)) for all EURCV lines where balance < 0.
+# Holders = count of those lines.
+
+def get_circulating_supply_and_holders():
+    total_supply = 0.0
+    holders = 0
+    marker = None
+    page = 1
+
+    while True:
+        params = {"account": ISSUER, "limit": 400}
+        if marker:
+            params["marker"] = marker
+
+        result = xrpl_post("account_lines", params)
+        for line in result.get("lines", []):
+            if line.get("currency", "").upper() != CURRENCY_HEX.upper():
+                continue
+            balance = float(line.get("balance", 0))
+            if balance < 0:  # issuer owes this amount → holder has tokens
+                total_supply += abs(balance)
+                holders += 1
+
+        marker = result.get("marker")
+        if not marker:
+            break
+
+        print(f"  account_lines page {page}: {holders} holders so far")
+        page += 1
+        time.sleep(0.15)
+
+    return round(total_supply, 6), holders
 
 
 # ── Fetch all issuer transactions ─────────────────────────────────────────────
@@ -52,7 +89,7 @@ def get_all_issuer_transactions():
             "ledger_index_min": -1,
             "ledger_index_max": -1,
             "limit": 400,
-            "forward": True,   # oldest first
+            "forward": True,
         }
         if marker:
             params["marker"] = marker
@@ -72,14 +109,17 @@ def get_all_issuer_transactions():
     return all_txs
 
 
-# ── Process transactions → supply + holders ───────────────────────────────────
+# ── Process transactions → historical shape ───────────────────────────────────
+#
+# Transaction replay gives us WHEN supply changed and by how much.
+# We use it only for the historical shape of the curve; the current endpoint
+# is always overridden by the authoritative account_lines value.
 
 def process_transactions(txs):
     delta_by_date = defaultdict(float)
-    holder_first_seen = {}   # address → date of first receipt
+    holder_first_seen = {}  # address → date of first receipt
 
     for entry in txs:
-        # rippled returns tx inside "tx" or "tx_json" depending on version
         tx = entry.get("tx") or entry.get("tx_json") or {}
         meta = entry.get("meta") or entry.get("metadata") or {}
 
@@ -92,9 +132,7 @@ def process_transactions(txs):
         sender = tx.get("Account", "")
         dest = tx.get("Destination", "")
 
-        # Use meta.delivered_amount for accuracy (handles partial payments)
         delivered = meta.get("delivered_amount") or tx.get("Amount", {})
-
         if not is_eurcv(delivered):
             continue
 
@@ -110,7 +148,7 @@ def process_transactions(txs):
             # Redemption: holder → issuer
             delta_by_date[date] -= value
 
-    # Cumulative supply
+    # Cumulative supply (historical shape only; last point will be overridden)
     supply_history = []
     cumulative = 0.0
     for date in sorted(delta_by_date.keys()):
@@ -158,21 +196,40 @@ def compute_marketcap(supply_history, eur_usd_rates):
 def main():
     os.makedirs("data", exist_ok=True)
 
-    print("Récupération des transactions de l'issuer XRPL (sans clé)...")
+    # 1. Authoritative current state via account_lines
+    print("Récupération de la circulating supply via account_lines...")
+    current_supply, current_holders = get_circulating_supply_and_holders()
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    print(f"  Circulating supply actuelle : {current_supply:,.2f} EURCV")
+    print(f"  Holders actifs              : {current_holders}")
+
+    # 2. Historical shape via transaction replay
+    print("Récupération des transactions de l'issuer XRPL...")
     txs = get_all_issuer_transactions()
     print(f"Total: {len(txs)} transactions")
 
-    print("Reconstruction supply + holders...")
+    print("Reconstruction historique supply + holders...")
     supply_history, holders_history = process_transactions(txs)
-    print(f"  {len(supply_history)} jours avec activité supply")
-    print(f"  {len(holders_history)} jours avec activité holders")
+    print(f"  {len(supply_history)} jours avec activité supply (replay)")
+    print(f"  {len(holders_history)} jours avec activité holders (replay)")
+
+    # 3. Override/append today with account_lines values (authoritative endpoint)
+    if supply_history and supply_history[-1]["date"] == today:
+        supply_history[-1]["supply"] = current_supply
+    else:
+        supply_history.append({"date": today, "supply": current_supply})
+
+    if holders_history and holders_history[-1]["date"] == today:
+        holders_history[-1]["holders"] = current_holders
+    else:
+        holders_history.append({"date": today, "holders": current_holders})
 
     if not supply_history:
         print("Aucune transaction EURCV trouvée.")
         return
 
     start_date = supply_history[0]["date"]
-    print(f"Récupération des taux EUR/USD depuis le {start_date} (frankfurter.app)...")
+    print(f"Récupération des taux EUR/USD depuis le {start_date}...")
     eur_usd_rates = fetch_eur_usd_rates(start_date)
 
     marketcap_history = compute_marketcap(supply_history, eur_usd_rates)
@@ -184,6 +241,8 @@ def main():
         json.dump(holders_history, f)
 
     print(f"Sauvegardé : {len(marketcap_history)} points market cap, {len(holders_history)} points holders")
+    if marketcap_history:
+        print(f"  Dernier point : {marketcap_history[-1]}")
 
 
 if __name__ == "__main__":
