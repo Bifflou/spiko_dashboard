@@ -187,7 +187,7 @@ def compute_marketcap(supply_history, eur_usd_rates):
             last_rate = eur_usd_rates[date]
         if last_rate is None:
             continue
-        result.append({"date": date, "marketcap": round(item["supply"] * last_rate, 2)})
+        result.append({"date": date, "marketcap": round(item["supply"] * last_rate, 2), "supply": round(item["supply"], 2)})
     return result
 
 

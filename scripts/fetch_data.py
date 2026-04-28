@@ -143,7 +143,7 @@ def compute_marketcap(supply_history, eur_usd_rates):
             continue
 
         mcap = round(item["supply"] * last_rate, 2)
-        marketcap_history.append({"date": date, "marketcap": mcap})
+        marketcap_history.append({"date": date, "marketcap": mcap, "supply": round(item["supply"], 2)})
 
     return marketcap_history
 
