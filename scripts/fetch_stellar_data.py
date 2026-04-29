@@ -196,28 +196,28 @@ def main():
     print(f"  Circulating supply : {current_supply:,.7f} EURCV")
     print(f"  Holders actifs     : {current_holders}")
 
-    print("Récupération des opérations issuer Stellar (Horizon, pour holders)...")
+    print("Récupération des opérations issuer Stellar (Horizon)...")
     ops = get_all_issuer_operations()
     print(f"Total: {len(ops)} opérations")
 
-    # Supply history: operation replay on Stellar is unreliable (the 15 M EURCV
-    # were not issued via simple payments visible on the issuer account).
-    # We output today's authoritative value only — no false historical zeros.
-    _, holders_history = process_operations(ops)
-    print(f"  {len(holders_history)} jours avec activité holders")
+    supply_history, holders_history = process_operations(ops)
+    print(f"  {len(supply_history)} jours avec activité supply, {len(holders_history)} jours avec activité holders")
 
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
-    # Supply: anchor at creation date so Stellar occupies a meaningful span on
-    # the chart x-axis. Historical supply can't be reconstructed from Horizon
-    # operations, so we show a flat line from creation → today at current supply.
-    if created_date and created_date < today:
+    # Supply: override/append today with authoritative current_supply from stellar.expert
+    if supply_history and supply_history[-1]["date"] == today:
+        supply_history[-1]["supply"] = current_supply
+    else:
+        supply_history.append({"date": today, "supply": current_supply})
+
+    # If operations gave nothing, fall back to a single point at creation date
+    if len(supply_history) == 1 and created_date and created_date < today:
         supply_history = [
             {"date": created_date, "supply": current_supply},
             {"date": today,        "supply": current_supply},
         ]
-    else:
-        supply_history = [{"date": today, "supply": current_supply}]
+        print("  Avertissement: aucune opération de supply trouvée, utilisation d'une ligne plate.")
 
     # Holders: append/override today with authoritative count
     if holders_history and holders_history[-1]["date"] == today:
