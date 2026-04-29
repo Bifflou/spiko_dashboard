@@ -345,7 +345,7 @@
       });
     }
 
-    // ── Doughnut chart ──────────────────────────────────────────────────────────
+    // ── Pie chart ───────────────────────────────────────────────────────────────
     // Shows the latest known value per active chain.
     function getLatestValues(seriesArr, valueKey) {
       return seriesArr.map(series => {
@@ -358,50 +358,125 @@
       });
     }
 
-    function buildDoughnutChart(canvasId, seriesArr, valueKey, fmtVal) {
+    function buildPieChart(canvasId, seriesArr, valueKey, fmtVal) {
       const ctx = document.getElementById(canvasId).getContext('2d');
       const values = getLatestValues(seriesArr, valueKey);
-      const active = CHAINS.map((chain, i) => ({ chain, value: values[i] })).filter(d => d.value > 0);
-      const total  = active.reduce((s, d) => s + d.value, 0);
+      const active  = CHAINS.map((chain, i) => ({ chain, value: values[i] })).filter(d => d.value > 0);
+      const baseBg  = active.map(d => d.chain.color + 'CC');
+
+      // Custom plugin: labels with pointer lines drawn on canvas
+      const outerLabelsPlugin = {
+        id: 'outerLabels_' + canvasId,
+        afterDraw(chart) {
+          const { ctx: c, data } = chart;
+          const meta = chart.getDatasetMeta(0);
+          if (!meta.data.length) return;
+          c.save();
+
+          meta.data.forEach((arc, i) => {
+            const value = data.datasets[0].data[i];
+            if (!value) return;
+
+            const label = data.labels[i];
+            const color = active[i].chain.color;
+            const mid   = (arc.startAngle + arc.endAngle) / 2;
+            const cx    = arc.x;
+            const cy    = arc.y;
+            const r     = arc.outerRadius;
+            const isRight = Math.cos(mid) >= 0;
+
+            // Pointer: radial segment → short elbow
+            const x1 = cx + (r + 5)  * Math.cos(mid);
+            const y1 = cy + (r + 5)  * Math.sin(mid);
+            const x2 = cx + (r + 22) * Math.cos(mid);
+            const y2 = cy + (r + 22) * Math.sin(mid);
+            const x3 = x2 + (isRight ? 14 : -14);
+            const y3 = y2;
+
+            c.beginPath();
+            c.moveTo(x1, y1);
+            c.lineTo(x2, y2);
+            c.lineTo(x3, y3);
+            c.strokeStyle = color;
+            c.lineWidth = 1;
+            c.stroke();
+
+            // Dot at pie edge
+            c.beginPath();
+            c.arc(x1, y1, 2, 0, Math.PI * 2);
+            c.fillStyle = color;
+            c.fill();
+
+            // Labels: chain name + formatted value
+            const tx = x3 + (isRight ? 6 : -6);
+            c.textAlign    = isRight ? 'left' : 'right';
+            c.textBaseline = 'alphabetic';
+
+            c.fillStyle = '#c9d1d9';
+            c.font = '600 11.5px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+            c.fillText(label, tx, y3 - 5);
+
+            c.fillStyle = '#8b949e';
+            c.font = '11.5px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+            c.fillText(fmtVal(value), tx, y3 + 9);
+          });
+
+          c.restore();
+        },
+      };
+
+      // Track hovered index to avoid redundant updates
+      let prevHoveredIdx = -1;
 
       return new Chart(ctx, {
-        type: 'doughnut',
+        type: 'pie',
         data: {
           labels: active.map(d => d.chain.label),
           datasets: [{
             data: active.map(d => d.value),
-            backgroundColor: active.map(d => d.chain.color + 'B3'),
-            borderColor: active.map(d => d.chain.color),
-            borderWidth: 1.5,
-            hoverOffset: 10,
+            backgroundColor: [...baseBg],
+            borderColor: '#161b22',
+            borderWidth: 2,
+            hoverOffset: 12,
+            hoverBorderColor: '#161b22',
+            hoverBorderWidth: 2,
           }],
         },
         options: {
           responsive: true,
           maintainAspectRatio: false,
-          cutout: '58%',
+          layout: { padding: { top: 50, bottom: 50, left: 115, right: 115 } },
+          animation: { animateRotate: true, duration: 800, easing: 'easeInOutQuart' },
+          onHover(event, elements, chart) {
+            const idx = elements.length > 0 ? elements[0].index : -1;
+            if (idx === prevHoveredIdx) return;
+            prevHoveredIdx = idx;
+            chart.data.datasets[0].backgroundColor = active.map((d, i) =>
+              idx < 0 ? d.chain.color + 'CC'
+                       : i === idx ? d.chain.color + 'F0' : d.chain.color + '35'
+            );
+            chart.update('none');
+          },
           plugins: {
-            legend: {
-              display: true,
-              position: 'right',
-              labels: { color: '#8b949e', usePointStyle: true, pointStyle: 'circle', boxWidth: 8, padding: 16, font: { size: 12 } },
-            },
+            legend: { display: false },
             tooltip: {
               backgroundColor: '#1c2128',
               borderColor: '#30363d',
               borderWidth: 1,
-              titleColor: '#8b949e',
-              bodyColor: '#e6edf3',
-              padding: 10,
+              padding: 12,
+              displayColors: false,
+              titleColor: '#f0f6fc',
+              titleFont: { weight: '700', size: 13 },
+              bodyColor: '#8b949e',
+              bodyFont: { size: 12 },
               callbacks: {
-                label: ctx => {
-                  const pct = total > 0 ? ((ctx.raw / total) * 100).toFixed(1) : '0.0';
-                  return `  ${fmtVal(ctx.raw)}  (${pct}%)`;
-                },
+                title: ctx => ctx[0].label,
+                label: ctx => '  ' + fmtVal(ctx.raw),
               },
             },
           },
         },
+        plugins: [outerLabelsPlugin],
       });
     }
 
@@ -423,7 +498,7 @@
       if (mcapViewMode === 'line') {
         mcapChartInstance = buildLineChart('chart-mcap', buildStacked(mcapSeriesData, valueKey), fmtVal, fmtAxis);
       } else {
-        mcapChartInstance = buildDoughnutChart('chart-mcap', mcapSeriesData, valueKey, fmtVal);
+        mcapChartInstance = buildPieChart('chart-mcap', mcapSeriesData, valueKey, fmtVal);
       }
     }
 
@@ -435,7 +510,7 @@
       if (holdersViewMode === 'line') {
         holdersChartInstance = buildLineChart('chart-holders', buildStacked(holdersSeriesData, 'holders'), fmtVal, fmtAxis);
       } else {
-        holdersChartInstance = buildDoughnutChart('chart-holders', holdersSeriesData, 'holders', fmtVal);
+        holdersChartInstance = buildPieChart('chart-holders', holdersSeriesData, 'holders', fmtVal);
       }
     }
 
