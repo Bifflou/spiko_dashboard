@@ -368,6 +368,14 @@
       <div class="card">
         <div class="card-header">
           <h2>Total Market Cap par Token (USD)</h2>
+          <div class="toggle-wrap">
+            <button class="toggle-btn active" id="global-mcap-token-btn-line" onclick="setGlobalView('mcap-token','line')" title="Courbe">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><polyline points="1,12 5,7 8,9 11,4 15,6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <button class="toggle-btn" id="global-mcap-token-btn-pie" onclick="setGlobalView('mcap-token','pie')" title="Camembert">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 8 L8 1.5 A6.5 6.5 0 1 1 2.3 11.2 Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M8 8 L8 1.5 A6.5 6.5 0 0 0 2.3 11.2 Z" fill="currentColor" opacity="0.25"/></svg>
+            </button>
+          </div>
         </div>
         <div class="chart-wrap"><canvas id="chart-global-mcap-token"></canvas></div>
       </div>
@@ -375,6 +383,14 @@
       <div class="card">
         <div class="card-header">
           <h2>Total Market Cap par Chaîne (USD)</h2>
+          <div class="toggle-wrap">
+            <button class="toggle-btn active" id="global-mcap-chain-btn-line" onclick="setGlobalView('mcap-chain','line')" title="Courbe">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><polyline points="1,12 5,7 8,9 11,4 15,6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <button class="toggle-btn" id="global-mcap-chain-btn-pie" onclick="setGlobalView('mcap-chain','pie')" title="Camembert">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 8 L8 1.5 A6.5 6.5 0 1 1 2.3 11.2 Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M8 8 L8 1.5 A6.5 6.5 0 0 0 2.3 11.2 Z" fill="currentColor" opacity="0.25"/></svg>
+            </button>
+          </div>
         </div>
         <div class="chart-wrap"><canvas id="chart-global-mcap-chain"></canvas></div>
       </div>
@@ -382,6 +398,14 @@
       <div class="card">
         <div class="card-header">
           <h2>Total Holders par Token</h2>
+          <div class="toggle-wrap">
+            <button class="toggle-btn active" id="global-holders-token-btn-line" onclick="setGlobalView('holders-token','line')" title="Courbe">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><polyline points="1,12 5,7 8,9 11,4 15,6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <button class="toggle-btn" id="global-holders-token-btn-pie" onclick="setGlobalView('holders-token','pie')" title="Camembert">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 8 L8 1.5 A6.5 6.5 0 1 1 2.3 11.2 Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M8 8 L8 1.5 A6.5 6.5 0 0 0 2.3 11.2 Z" fill="currentColor" opacity="0.25"/></svg>
+            </button>
+          </div>
         </div>
         <div class="chart-wrap"><canvas id="chart-global-holders-token"></canvas></div>
       </div>
@@ -389,6 +413,14 @@
       <div class="card">
         <div class="card-header">
           <h2>Total Holders par Chaîne</h2>
+          <div class="toggle-wrap">
+            <button class="toggle-btn active" id="global-holders-chain-btn-line" onclick="setGlobalView('holders-chain','line')" title="Courbe">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><polyline points="1,12 5,7 8,9 11,4 15,6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <button class="toggle-btn" id="global-holders-chain-btn-pie" onclick="setGlobalView('holders-chain','pie')" title="Camembert">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 8 L8 1.5 A6.5 6.5 0 1 1 2.3 11.2 Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M8 8 L8 1.5 A6.5 6.5 0 0 0 2.3 11.2 Z" fill="currentColor" opacity="0.25"/></svg>
+            </button>
+          </div>
         </div>
         <div class="chart-wrap"><canvas id="chart-global-holders-chain"></canvas></div>
       </div>
@@ -1009,59 +1041,70 @@
       }));
     }
 
+    const fmtH     = v => fmtSpaced(v) + ' holders';
+    const fmtAxisH = v => fmtSpaced(v);
+
+    const globalData = {
+      'mcap-token':    { mode: 'line', chart: null, chains: null, seriesArr: null, fmtVal: fmtUSD,  fmtAxis: fmtAxisUSD, useRates: true  },
+      'mcap-chain':    { mode: 'line', chart: null, chains: null, seriesArr: null, fmtVal: fmtUSD,  fmtAxis: fmtAxisUSD, useRates: true  },
+      'holders-token': { mode: 'line', chart: null, chains: null, seriesArr: null, fmtVal: fmtH,    fmtAxis: fmtAxisH,   useRates: false },
+      'holders-chain': { mode: 'line', chart: null, chains: null, seriesArr: null, fmtVal: fmtH,    fmtAxis: fmtAxisH,   useRates: false },
+    };
+
+    function rebuildGlobalChart(id) {
+      const d = globalData[id];
+      const canvasId = 'chart-global-' + id;
+      if (d.chart) { d.chart.destroy(); d.chart = null; }
+      const wrap = document.getElementById(canvasId).parentElement;
+      wrap.innerHTML = `<canvas id="${canvasId}"></canvas>`;
+      if (d.mode === 'line') {
+        d.chart = buildLineChart(canvasId, buildStacked(d.chains, d.seriesArr, 'value'), d.fmtVal, d.fmtAxis, d.useRates ? eurusdRates : null);
+      } else {
+        d.chart = buildPieChart(canvasId, d.seriesArr, d.chains, 'value', d.fmtVal);
+      }
+    }
+
+    function setGlobalView(id, mode) {
+      globalData[id].mode = mode;
+      document.getElementById('global-' + id + '-btn-line').classList.toggle('active', mode === 'line');
+      document.getElementById('global-' + id + '-btn-pie').classList.toggle('active', mode === 'pie');
+      rebuildGlobalChart(id);
+    }
+
     function buildGlobalCharts() {
       // ── Market Cap by Token (USD) ───────────────────────────────────────────
       const eurcvMcapTotal = mergeSeries(state.eurcv.mcapData.map(s => ({ series: s, key: 'marketcap' })));
       const usdcvMcapTotal = mergeSeries(state.usdcv.mcapData.map(s => ({ series: s, key: 'supply' })));
-
-      buildLineChart(
-        'chart-global-mcap-token',
-        buildStacked(GLOBAL_TOKEN_CHAINS, [eurcvMcapTotal, usdcvMcapTotal], 'value'),
-        fmtUSD, fmtAxisUSD, eurusdRates
-      );
+      globalData['mcap-token'].chains    = GLOBAL_TOKEN_CHAINS;
+      globalData['mcap-token'].seriesArr = [eurcvMcapTotal, usdcvMcapTotal];
+      rebuildGlobalChart('mcap-token');
 
       // ── Market Cap by Chain (USD) ───────────────────────────────────────────
-      // EURCV chains: [ETH=0, SOL=1, XRPL=2, Stellar=3]
-      // USDCV chains: [ETH=0, SOL=1]
-      const chainMcapSeries = [
+      globalData['mcap-chain'].chains    = GLOBAL_CHAIN_CHAINS;
+      globalData['mcap-chain'].seriesArr = [
         mergeSeries([{ series: state.eurcv.mcapData[0], key: 'marketcap' }, { series: state.usdcv.mcapData[0], key: 'supply' }]),
         mergeSeries([{ series: state.eurcv.mcapData[1], key: 'marketcap' }, { series: state.usdcv.mcapData[1], key: 'supply' }]),
         mergeSeries([{ series: state.eurcv.mcapData[2], key: 'marketcap' }]),
         mergeSeries([{ series: state.eurcv.mcapData[3], key: 'marketcap' }]),
       ];
-
-      buildLineChart(
-        'chart-global-mcap-chain',
-        buildStacked(GLOBAL_CHAIN_CHAINS, chainMcapSeries, 'value'),
-        fmtUSD, fmtAxisUSD, eurusdRates
-      );
+      rebuildGlobalChart('mcap-chain');
 
       // ── Holders by Token ────────────────────────────────────────────────────
       const eurcvHoldersTotal = mergeSeries(state.eurcv.holdersData.map(s => ({ series: s, key: 'holders' })));
       const usdcvHoldersTotal = mergeSeries(state.usdcv.holdersData.map(s => ({ series: s, key: 'holders' })));
-
-      const fmtH     = v => fmtSpaced(v) + ' holders';
-      const fmtAxisH = v => fmtSpaced(v);
-
-      buildLineChart(
-        'chart-global-holders-token',
-        buildStacked(GLOBAL_TOKEN_CHAINS, [eurcvHoldersTotal, usdcvHoldersTotal], 'value'),
-        fmtH, fmtAxisH
-      );
+      globalData['holders-token'].chains    = GLOBAL_TOKEN_CHAINS;
+      globalData['holders-token'].seriesArr = [eurcvHoldersTotal, usdcvHoldersTotal];
+      rebuildGlobalChart('holders-token');
 
       // ── Holders by Chain ────────────────────────────────────────────────────
-      const chainHoldersSeries = [
+      globalData['holders-chain'].chains    = GLOBAL_CHAIN_CHAINS;
+      globalData['holders-chain'].seriesArr = [
         mergeSeries([{ series: state.eurcv.holdersData[0], key: 'holders' }, { series: state.usdcv.holdersData[0], key: 'holders' }]),
         mergeSeries([{ series: state.eurcv.holdersData[1], key: 'holders' }, { series: state.usdcv.holdersData[1], key: 'holders' }]),
         mergeSeries([{ series: state.eurcv.holdersData[2], key: 'holders' }]),
         mergeSeries([{ series: state.eurcv.holdersData[3], key: 'holders' }]),
       ];
-
-      buildLineChart(
-        'chart-global-holders-chain',
-        buildStacked(GLOBAL_CHAIN_CHAINS, chainHoldersSeries, 'value'),
-        fmtH, fmtAxisH
-      );
+      rebuildGlobalChart('holders-chain');
     }
 
     // ── State ───────────────────────────────────────────────────────────────────
