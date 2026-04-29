@@ -63,6 +63,7 @@ def get_circulating_supply_and_holders():
             balance = float(line.get("balance", 0))
             if balance < 0:  # issuer owes this amount → holder has tokens
                 total_supply += abs(balance)
+            if balance != 0:  # any non-zero balance = active holder (incl. issuer-side)
                 holders += 1
 
         marker = result.get("marker")
