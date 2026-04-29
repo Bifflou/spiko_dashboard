@@ -188,7 +188,7 @@
     .kpi-dot      { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
     .kpi-row-name { color: var(--text-sec); flex: 1; min-width: 0; white-space: nowrap; font-weight: 400; }
     .kpi-row-val  { color: var(--text); font-weight: 600; white-space: nowrap; }
-    .kpi-row-pct  { color: var(--text-mute); font-size: 0.68rem; white-space: nowrap; }
+    .kpi-row-pct  { color: var(--text-sec); font-size: 0.68rem; white-space: nowrap; }
     .kpi-note-tiny { margin-top: 0.4rem; font-size: 0.65rem; color: var(--text-sec); font-style: italic; }
 
     /* ── Two-column layout ───────────────────────────────────────────────── */
@@ -347,8 +347,7 @@
     <div class="header-accent"></div>
     <h1>CoinVertible Dashboard</h1>
     <span class="header-badge">SG Forge</span>
-    <p>Données on-chain · EURCV &amp; USDCV · Société Générale</p>
-    <div class="toggle-wrap" style="margin-left:auto; flex-shrink:0;">
+<div class="toggle-wrap" style="margin-left:auto; flex-shrink:0;">
       <button class="toggle-btn active" id="btn-usd" onclick="setCurrency('USD')">USD</button>
       <button class="toggle-btn"        id="btn-eur" onclick="setCurrency('EUR')">EUR</button>
     </div>
