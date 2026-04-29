@@ -21,8 +21,8 @@
       --red-dim:   rgba(226,0,26,0.12);
       --red-dim2:  rgba(226,0,26,0.22);
       --text:      #EEF0FF;
-      --text-sec:  #8090C0;
-      --text-mute: #5A6A9A;
+      --text-sec:  #A8B8D8;
+      --text-mute: #7888B0;
       --green:     #2EA87A;
       --red-neg:   #E2001A;
     }
@@ -140,7 +140,7 @@
     .kpi-label {
       font-size: 0.65rem;
       font-weight: 700;
-      color: var(--text-mute);
+      color: var(--text-sec);
       text-transform: uppercase;
       letter-spacing: 0.14em;
       margin-bottom: 0.7rem;
@@ -189,7 +189,7 @@
     .kpi-row-name { color: var(--text-sec); flex: 1; min-width: 0; white-space: nowrap; font-weight: 400; }
     .kpi-row-val  { color: var(--text); font-weight: 600; white-space: nowrap; }
     .kpi-row-pct  { color: var(--text-mute); font-size: 0.68rem; white-space: nowrap; }
-    .kpi-note-tiny { margin-top: 0.4rem; font-size: 0.65rem; color: var(--text-mute); font-style: italic; }
+    .kpi-note-tiny { margin-top: 0.4rem; font-size: 0.65rem; color: var(--text-sec); font-style: italic; }
 
     /* ── Two-column layout ───────────────────────────────────────────────── */
     .dashboard-cols {
@@ -642,13 +642,13 @@
           plugins: {
             legend: {
               display: true, position: 'top', align: 'end',
-              labels: { color: '#8b949e', usePointStyle: true, pointStyle: 'circle', boxWidth: 8, padding: 16, font: { size: 12 } },
+              labels: { color: '#A8B8D8', usePointStyle: true, pointStyle: 'circle', boxWidth: 8, padding: 16, font: { size: 12 } },
             },
             tooltip: { enabled: false, external: makeTooltipHandler(fmtVal, paired, rates, rawDates) },
           },
           scales: {
-            x: { ticks: { color: '#8b949e', maxTicksLimit: 8, maxRotation: 0 }, grid: { color: '#21262d' } },
-            y: { stacked: true, beginAtZero: true, ticks: { color: '#8b949e', callback: fmtAxis }, grid: { color: '#21262d' } },
+            x: { ticks: { color: '#A8B8D8', maxTicksLimit: 8, maxRotation: 0 }, grid: { color: '#182044' } },
+            y: { stacked: true, beginAtZero: true, ticks: { color: '#A8B8D8', callback: fmtAxis }, grid: { color: '#182044' } },
           },
         },
       });
@@ -908,7 +908,6 @@
       document.getElementById('kpi-total-mcap').innerHTML = `
         <div class="kpi-label">Total Market Cap</div>
         <div class="kpi-main">${fmtKpiMcap(grandMcap)}</div>
-        ${varHtml}
         <div class="kpi-details">
           ${TOKEN_META.map((t, i) => {
             const val = i === 0 ? eurcvTotal : usdcvTotal;
@@ -927,7 +926,7 @@
         <div class="kpi-label">Market Cap par Chaîne</div>
         ${topChainMcap ? `
           <div class="kpi-main">${fmtKpiMcap(topChainMcap.value)}</div>
-          <div class="kpi-main-sub" style="color:${topChainMcap.color}">${topChainMcap.label}</div>
+          <div class="kpi-main-sub"><span style="color:${topChainMcap.color}">${topChainMcap.label}</span> <span class="kpi-row-pct">(${pct(topChainMcap.value, grandMcap)})</span></div>
         ` : '<div class="kpi-main">—</div>'}
         <div class="kpi-details">
           ${otherChainsMcap.map(c => `
@@ -962,7 +961,7 @@
         <div class="kpi-label">Holders par Chaîne</div>
         ${topChainH ? `
           <div class="kpi-main">${fmtSpaced(topChainH.value)}</div>
-          <div class="kpi-main-sub" style="color:${topChainH.color}">${topChainH.label}</div>
+          <div class="kpi-main-sub"><span style="color:${topChainH.color}">${topChainH.label}</span> <span class="kpi-row-pct">(${pct(topChainH.value, grandHolders)})</span></div>
         ` : '<div class="kpi-main">—</div>'}
         <div class="kpi-details">
           ${othersH.map(c => `
