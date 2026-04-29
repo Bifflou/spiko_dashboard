@@ -396,7 +396,8 @@
             });
           });
 
-          // 2. Spread labels per side — symmetric around centre of mass
+          // 2. Spread labels per side — symmetric around centre of mass, then clamp to canvas
+          const MARGIN = 14;
           ['right', 'left'].forEach(side => {
             const grp = items
               .filter(d => d.isRight === (side === 'right'))
@@ -405,6 +406,11 @@
             const centerY = grp.reduce((s, d) => s + d.adjY, 0) / grp.length;
             const totalH  = (grp.length - 1) * MIN_GAP;
             grp.forEach((d, k) => { d.adjY = centerY - totalH / 2 + k * MIN_GAP; });
+            // Clamp: shift entire group if any label exits canvas bounds
+            const topOver = MARGIN - grp[0].adjY;
+            if (topOver > 0) grp.forEach(d => d.adjY += topOver);
+            const botOver = grp[grp.length - 1].adjY - (chart.height - MARGIN);
+            if (botOver > 0) grp.forEach(d => d.adjY -= botOver);
           });
 
           // 3. Draw: angled line from pie edge → column → tick → text
@@ -459,7 +465,7 @@
         options: {
           responsive: true,
           maintainAspectRatio: false,
-          layout: { padding: { top: 60, bottom: 60, left: 120, right: 120 } },
+          layout: { padding: { top: 85, bottom: 65, left: 130, right: 130 } },
           animation: { animateRotate: true, duration: 800, easing: 'easeInOutQuart' },
           onHover(event, elements, chart) {
             const idx = elements.length > 0 ? elements[0].index : -1;
