@@ -188,6 +188,9 @@
   </div>
 
   <p id="last-updated"></p>
+  <p id="rate-warning" style="display:none; margin-top:0.4rem; font-size:0.75rem; color:#f0883e;">
+    &#9888; Taux EUR/USD approximatif (service indisponible, fallback 1.08)
+  </p>
 
   <script>
     const CHAINS = [
@@ -500,6 +503,61 @@
       });
     }
 
+    // ── EUR/USD rates (Frankfurter, localStorage cache) ─────────────────────────
+    const FALLBACK_RATE   = 1.08;
+    const EURUSD_CACHE_KEY = 'eurusd_rates_v2';
+
+    async function loadEurUsdRates(startDate) {
+      const today = new Date().toISOString().slice(0, 10);
+
+      // Read cache
+      let cached = { rates: {}, ts: 0 };
+      try { cached = JSON.parse(localStorage.getItem(EURUSD_CACHE_KEY)) || cached; } catch {}
+
+      const storedRates  = cached.rates || {};
+      const storedDates  = Object.keys(storedRates).sort();
+      const lastStored   = storedDates[storedDates.length - 1] || null;
+      const cacheAge     = Date.now() - (cached.ts || 0);
+      const cacheFresh   = cacheAge < 24 * 3600 * 1000;
+
+      // Fetch only if cache is stale or doesn't cover today
+      if (!lastStored || !cacheFresh || lastStored < today) {
+        try {
+          const fetchFrom = lastStored || startDate; // only missing tail
+          const url = `https://api.frankfurter.dev/v2/rates?from=${fetchFrom}&to=${today}&base=EUR&quotes=USD`;
+          const resp = await fetch(url);
+          if (!resp.ok) throw new Error(resp.status);
+          const data = await resp.json();
+          for (const [date, vals] of Object.entries(data.rates || {}))
+            storedRates[date] = vals.USD;
+          try {
+            localStorage.setItem(EURUSD_CACHE_KEY,
+              JSON.stringify({ rates: storedRates, ts: Date.now() }));
+          } catch {}
+        } catch {
+          if (!lastStored)
+            document.getElementById('rate-warning').style.display = '';
+        }
+      }
+
+      return storedRates;
+    }
+
+    // Forward-fill EUR/USD rates onto supply series dates (sorted ascending)
+    function applyEurUsdRates(supplyData, rates) {
+      if (!supplyData.length) return supplyData;
+      const rateEntries = Object.entries(rates).sort((a, b) => a[0] < b[0] ? -1 : 1);
+      let ri = 0, last = FALLBACK_RATE;
+      return supplyData.map(item => {
+        // Advance pointer to last rate on or before item.date
+        while (ri < rateEntries.length && rateEntries[ri][0] <= item.date) {
+          last = rateEntries[ri][1];
+          ri++;
+        }
+        return { ...item, marketcap: Math.round(item.supply * last * 100) / 100 };
+      });
+    }
+
     // ── State ───────────────────────────────────────────────────────────────────
     let currentCurrency  = 'USD';
     let mcapViewMode     = 'line';
@@ -567,8 +625,17 @@
         files.map(f => fetch(f).then(r => r.ok ? r.json() : []).catch(() => []))
       );
 
-      mcapSeriesData    = CHAINS.map((_, i) => results[i * 2]);
-      holdersSeriesData = CHAINS.map((_, i) => results[i * 2 + 1]);
+      const rawMcapSeries = CHAINS.map((_, i) => results[i * 2]);
+      holdersSeriesData   = CHAINS.map((_, i) => results[i * 2 + 1]);
+
+      // Earliest date across all chains → start of EUR/USD fetch
+      const allDates = rawMcapSeries.flat().map(d => d.date).filter(Boolean).sort();
+      const startDate = allDates[0] || '2023-01-01';
+
+      const eurusdRates = await loadEurUsdRates(startDate);
+
+      // Recompute marketcap dynamically: supply × historical EUR/USD rate
+      mcapSeriesData = rawMcapSeries.map(series => applyEurUsdRates(series, eurusdRates));
 
       rebuildMcap();
       rebuildHolders();
