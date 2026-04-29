@@ -3,33 +3,100 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>CoinVertible Dashboard</title>
+  <title>CoinVertible Dashboard — SG Forge</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-    body {
-      background: #0d1117;
-      color: #e6edf3;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      min-height: 100vh;
-      padding: 2rem 2.5rem;
+    :root {
+      --bg:        #05091A;
+      --bg-card:   #09112B;
+      --bg-deep:   #060C20;
+      --border:    #182044;
+      --border-hi: #243060;
+      --red:       #E2001A;
+      --red-dim:   rgba(226,0,26,0.12);
+      --red-dim2:  rgba(226,0,26,0.22);
+      --text:      #EEF0FF;
+      --text-sec:  #6275A8;
+      --text-mute: #323D64;
+      --green:     #2EA87A;
+      --red-neg:   #E2001A;
     }
 
-    header { margin-bottom: 2rem; }
-    header h1 { font-size: 1.6rem; font-weight: 700; color: #f0f6fc; }
-    header p { margin-top: 0.35rem; font-size: 0.85rem; color: #8b949e; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      min-height: 100vh;
+      padding: 0;
+    }
 
-    /* Global overview */
-    .section-title {
-      font-size: 0.72rem;
-      font-weight: 600;
-      color: #484f58;
+    /* ── Header ─────────────────────────────────────────────────────────── */
+    header {
+      background: var(--bg-deep);
+      border-bottom: 1px solid var(--border);
+      padding: 0 2.5rem;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .header-accent {
+      width: 3px;
+      height: 26px;
+      background: var(--red);
+      border-radius: 2px;
+      flex-shrink: 0;
+    }
+
+    header h1 {
+      font-size: 1rem;
+      font-weight: 700;
+      color: #FFFFFF;
+      letter-spacing: -0.01em;
+    }
+
+    .header-badge {
+      font-size: 0.65rem;
+      font-weight: 700;
+      color: var(--red);
+      background: var(--red-dim);
+      border: 1px solid var(--red-dim2);
+      border-radius: 4px;
+      padding: 2px 8px;
+      letter-spacing: 0.1em;
       text-transform: uppercase;
-      letter-spacing: 0.12em;
+    }
+
+    header p {
+      margin-left: auto;
+      font-size: 0.75rem;
+      color: var(--text-mute);
+      font-weight: 400;
+    }
+
+    /* ── Main layout ─────────────────────────────────────────────────────── */
+    .main-content { padding: 2rem 2.5rem; }
+
+    /* ── Section title ───────────────────────────────────────────────────── */
+    .section-title {
+      font-size: 0.65rem;
+      font-weight: 700;
+      color: var(--red);
+      text-transform: uppercase;
+      letter-spacing: 0.18em;
       margin-bottom: 1rem;
     }
 
+    /* ── Global overview ─────────────────────────────────────────────────── */
     .global-overview { margin-bottom: 2.5rem; }
 
     .global-grid {
@@ -43,12 +110,12 @@
 
     .holders-note {
       margin-top: 0.6rem;
-      font-size: 0.72rem;
-      color: #484f58;
+      font-size: 0.71rem;
+      color: var(--text-mute);
       font-style: italic;
     }
 
-    /* KPI cards */
+    /* ── KPI cards ───────────────────────────────────────────────────────── */
     .kpi-grid {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
@@ -60,74 +127,78 @@
     @media (max-width: 600px)  { .kpi-grid { grid-template-columns: 1fr; } }
 
     .kpi-card {
-      background: #161b22;
-      border: 1px solid #30363d;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-top: 2px solid var(--red);
       border-radius: 10px;
       padding: 1.25rem 1.5rem;
+      transition: border-color 0.2s;
     }
 
+    .kpi-card:hover { border-color: var(--border-hi); border-top-color: var(--red); }
+
     .kpi-label {
-      font-size: 0.7rem;
-      font-weight: 600;
-      color: #484f58;
+      font-size: 0.65rem;
+      font-weight: 700;
+      color: var(--text-mute);
       text-transform: uppercase;
-      letter-spacing: 0.1em;
+      letter-spacing: 0.14em;
       margin-bottom: 0.7rem;
     }
 
     .kpi-main {
-      font-size: 1.75rem;
-      font-weight: 700;
-      color: #f0f6fc;
-      line-height: 1.15;
+      font-size: 1.7rem;
+      font-weight: 800;
+      color: #FFFFFF;
+      line-height: 1.1;
+      letter-spacing: -0.02em;
     }
 
     .kpi-main-sub {
-      font-size: 0.8rem;
-      color: #8b949e;
-      margin-top: 0.15rem;
+      font-size: 0.78rem;
+      color: var(--text-sec);
+      margin-top: 0.2rem;
+      font-weight: 400;
     }
 
     .kpi-variation {
-      font-size: 0.76rem;
+      font-size: 0.73rem;
       font-weight: 600;
       margin-top: 0.3rem;
     }
-    .kpi-variation.pos { color: #3fb950; }
-    .kpi-variation.neg { color: #f85149; }
+    .kpi-variation.pos { color: var(--green); }
+    .kpi-variation.neg { color: var(--red-neg); }
 
     .kpi-details {
-      margin-top: 0.8rem;
-      padding-top: 0.8rem;
-      border-top: 1px solid #21262d;
+      margin-top: 0.85rem;
+      padding-top: 0.85rem;
+      border-top: 1px solid var(--border);
       display: flex;
       flex-direction: column;
-      gap: 0.3rem;
+      gap: 0.35rem;
     }
 
     .kpi-row {
       display: flex;
       align-items: center;
       gap: 7px;
-      font-size: 0.78rem;
+      font-size: 0.77rem;
     }
 
-    .kpi-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
-    .kpi-row-name  { color: #8b949e; flex: 1; min-width: 0; white-space: nowrap; }
-    .kpi-row-val   { color: #e6edf3; font-weight: 500; white-space: nowrap; }
-    .kpi-row-pct   { color: #484f58; font-size: 0.7rem; white-space: nowrap; }
-    .kpi-note-tiny { margin-top: 0.4rem; font-size: 0.67rem; color: #484f58; font-style: italic; }
+    .kpi-dot      { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+    .kpi-row-name { color: var(--text-sec); flex: 1; min-width: 0; white-space: nowrap; font-weight: 400; }
+    .kpi-row-val  { color: var(--text); font-weight: 600; white-space: nowrap; }
+    .kpi-row-pct  { color: var(--text-mute); font-size: 0.68rem; white-space: nowrap; }
+    .kpi-note-tiny { margin-top: 0.4rem; font-size: 0.65rem; color: var(--text-mute); font-style: italic; }
 
-    /* Two-column layout */
+    /* ── Two-column layout ───────────────────────────────────────────────── */
     .dashboard-cols {
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 2rem;
     }
 
-    @media (max-width: 900px) {
-      .dashboard-cols { grid-template-columns: 1fr; }
-    }
+    @media (max-width: 900px) { .dashboard-cols { grid-template-columns: 1fr; } }
 
     .token-col {
       display: flex;
@@ -137,45 +208,50 @@
 
     .token-col-header {
       display: flex;
-      align-items: baseline;
+      align-items: center;
       gap: 0.75rem;
     }
 
     .token-col-header h2 {
-      font-size: 1.05rem;
+      font-size: 1rem;
       font-weight: 700;
-      color: #f0f6fc;
+      color: #FFFFFF;
+      letter-spacing: -0.01em;
     }
 
     .token-col-header .token-tag {
-      font-size: 0.72rem;
-      font-weight: 600;
-      color: #8b949e;
-      background: #21262d;
-      border: 1px solid #30363d;
+      font-size: 0.65rem;
+      font-weight: 700;
+      color: var(--red);
+      background: var(--red-dim);
+      border: 1px solid var(--red-dim2);
       border-radius: 4px;
-      padding: 2px 7px;
-      letter-spacing: 0.04em;
+      padding: 2px 8px;
+      letter-spacing: 0.08em;
     }
 
+    /* ── Cards ───────────────────────────────────────────────────────────── */
     .card {
-      background: #161b22;
-      border: 1px solid #30363d;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
       border-radius: 10px;
       padding: 1.5rem;
+      transition: border-color 0.2s;
     }
 
+    .card:hover { border-color: var(--border-hi); }
+
     .card h2 {
-      font-size: 0.85rem;
+      font-size: 0.78rem;
       font-weight: 600;
-      color: #8b949e;
+      color: var(--text-sec);
       text-transform: uppercase;
-      letter-spacing: 0.06em;
+      letter-spacing: 0.08em;
     }
 
     .chart-wrap { position: relative; height: 300px; }
 
-    #last-updated { margin-top: 2rem; font-size: 0.75rem; color: #484f58; }
+    #last-updated { margin-top: 2rem; font-size: 0.72rem; color: var(--text-mute); }
 
     .card-header {
       display: flex;
@@ -190,11 +266,12 @@
       gap: 8px;
     }
 
+    /* ── Toggles ─────────────────────────────────────────────────────────── */
     .toggle-wrap {
       display: flex;
       align-items: center;
-      background: #0d1117;
-      border: 1px solid #30363d;
+      background: var(--bg-deep);
+      border: 1px solid var(--border);
       border-radius: 6px;
       padding: 2px;
     }
@@ -205,28 +282,29 @@
       justify-content: center;
       background: none;
       border: none;
-      color: #8b949e;
-      font-size: 0.78rem;
+      color: var(--text-sec);
+      font-size: 0.75rem;
       font-weight: 600;
       padding: 3px 10px;
       border-radius: 4px;
       cursor: pointer;
       transition: background 0.15s, color 0.15s;
       letter-spacing: 0.04em;
+      font-family: inherit;
     }
 
     .toggle-btn.active {
-      background: #21262d;
-      color: #f0f6fc;
+      background: var(--red);
+      color: #FFFFFF;
     }
 
     .toggle-btn svg { display: block; }
 
-    /* External tooltip */
+    /* ── External tooltip ────────────────────────────────────────────────── */
     .chart-tooltip {
       position: absolute;
-      background: #1c2128;
-      border: 1px solid #30363d;
+      background: #0D1535;
+      border: 1px solid var(--border-hi);
       border-radius: 8px;
       padding: 10px 14px;
       pointer-events: none;
@@ -234,7 +312,8 @@
       transition: opacity 0.1s;
       min-width: 220px;
       z-index: 10;
-      font-size: 0.82rem;
+      font-size: 0.81rem;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.5);
     }
 
     .tt-header {
@@ -244,11 +323,11 @@
       gap: 1.5rem;
       margin-bottom: 8px;
       padding-bottom: 8px;
-      border-bottom: 1px solid #30363d;
+      border-bottom: 1px solid var(--border);
     }
 
-    .tt-date  { color: #8b949e; font-size: 0.78rem; }
-    .tt-total { color: #f0f6fc; font-weight: 700; font-size: 0.9rem; white-space: nowrap; }
+    .tt-date  { color: var(--text-sec); font-size: 0.75rem; font-weight: 500; }
+    .tt-total { color: #FFFFFF; font-weight: 700; font-size: 0.88rem; white-space: nowrap; }
 
     .tt-row {
       display: flex;
@@ -258,16 +337,20 @@
     }
 
     .tt-dot   { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-    .tt-label { color: #8b949e; flex: 1; }
-    .tt-value { color: #e6edf3; font-weight: 500; white-space: nowrap; }
-    .tt-rate  { margin-top: 6px; padding-top: 6px; border-top: 1px solid #30363d; color: #8b949e; font-size: 0.72rem; text-align: right; }
+    .tt-label { color: var(--text-sec); flex: 1; font-weight: 400; }
+    .tt-value { color: var(--text); font-weight: 600; white-space: nowrap; }
+    .tt-rate  { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--border); color: var(--text-mute); font-size: 0.7rem; text-align: right; }
   </style>
 </head>
 <body>
   <header>
+    <div class="header-accent"></div>
     <h1>CoinVertible Dashboard</h1>
-    <p>Supply · Données on-chain · EURCV &amp; USDCV par Société Générale</p>
+    <span class="header-badge">SG Forge</span>
+    <p>Données on-chain · EURCV &amp; USDCV · Société Générale</p>
   </header>
+
+  <div class="main-content">
 
   <!-- ── KPI Cards ── -->
   <div class="kpi-grid">
@@ -400,7 +483,7 @@
   </div>
 
   <p id="last-updated"></p>
-  <p id="rate-warning" style="display:none; margin-top:0.4rem; font-size:0.75rem; color:#f0883e;">
+  <p id="rate-warning" style="display:none; margin-top:0.4rem; font-size:0.75rem; color:#E2601A;">
     &#9888; Taux EUR/USD approximatif (service indisponible, fallback 1.08)
   </p>
 
@@ -1081,5 +1164,7 @@
 
     init();
   </script>
+
+  </div><!-- /.main-content -->
 </body>
 </html>
