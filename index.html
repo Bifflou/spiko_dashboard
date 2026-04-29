@@ -524,7 +524,7 @@
       if (!lastStored || !cacheFresh || lastStored < today) {
         try {
           const fetchFrom = lastStored || startDate; // only missing tail
-          const url = `https://api.frankfurter.dev/v2/rates?from=${fetchFrom}&to=${today}&base=EUR&quotes=USD`;
+          const url = `https://api.frankfurter.app/${fetchFrom}..${today}?from=EUR&to=USD`;
           const resp = await fetch(url);
           if (!resp.ok) throw new Error(resp.status);
           const data = await resp.json();
