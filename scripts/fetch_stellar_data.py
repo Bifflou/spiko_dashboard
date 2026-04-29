@@ -1,48 +1,80 @@
-import requests
+import base64
 import json
 import os
+import requests
+import struct
 import time
-from datetime import datetime, timezone
 from collections import defaultdict
+from datetime import datetime, timezone
 
-ISSUER       = "GCEYGIVOLAVBF2TG2RUSGTUJCIN75KEX3NGLMY4VPL4GFE5L355AXW3G"
-ASSET_CODE   = "EURCV"
-HORIZON      = "https://horizon.stellar.org"
-EXPERT_BASE  = "https://api.stellar.expert"
-EXPERT       = f"{EXPERT_BASE}/explorer/public/asset/{ASSET_CODE}-{ISSUER}"
-STELLAR_SCALE = 10 ** 7  # stellar.expert balances are in raw units (7 decimal places)
+ISSUER        = "GCEYGIVOLAVBF2TG2RUSGTUJCIN75KEX3NGLMY4VPL4GFE5L355AXW3G"
+ASSET_CODE    = "EURCV"
+HORIZON       = "https://horizon.stellar.org"
+EXPERT_BASE   = "https://api.stellar.expert"
+EXPERT        = f"{EXPERT_BASE}/explorer/public/asset/{ASSET_CODE}-{ISSUER}"
+STELLAR_SCALE = 10 ** 7   # Stellar uses 7 decimal places
 
 
 def iso_to_date(iso):
     return iso[:10]
 
 
-# ── Current state ─────────────────────────────────────────────────────────────
+# ── XDR / ScVal decoding (no external deps) ────────────────────────────────────
+
+# Soroban SCValType discriminants
+SCV_I128   = 10
+SCV_U128   = 9
+SCV_SYMBOL = 15
+
+def decode_scval(b64):
+    """
+    Decode a base64-encoded Soroban ScVal.
+    Returns (type_str, python_value) or (None, None) on failure.
+    """
+    if not b64:
+        return None, None
+    try:
+        raw = base64.b64decode(b64)
+        discriminant = struct.unpack('>I', raw[:4])[0]
+
+        if discriminant == SCV_SYMBOL:
+            length = struct.unpack('>I', raw[4:8])[0]
+            return 'symbol', raw[8:8 + length].decode('utf-8')
+
+        elif discriminant == SCV_I128:
+            hi = struct.unpack('>q', raw[4:12])[0]   # signed int64
+            lo = struct.unpack('>Q', raw[12:20])[0]  # unsigned int64
+            return 'i128', (hi << 64) | lo
+
+        elif discriminant == SCV_U128:
+            hi = struct.unpack('>Q', raw[4:12])[0]
+            lo = struct.unpack('>Q', raw[12:20])[0]
+            return 'u128', (hi << 64) | lo
+
+    except Exception:
+        pass
+    return None, None
+
+
+# ── Current state (stellar.expert) ─────────────────────────────────────────────
 
 def get_asset_info():
-    """stellar.expert asset endpoint — created timestamp + supply metadata."""
     resp = requests.get(EXPERT, timeout=30)
     resp.raise_for_status()
     return resp.json()
 
 
 def get_circulating_supply_and_holders():
-    """stellar.expert /holders — sum(balance) = circulating supply, count = holders."""
+    """stellar.expert /holders — sum of non-zero balances = supply, count = holders."""
     total_supply = 0.0
     holder_count = 0
     url = f"{EXPERT}/holders"
-    first = True
-    page = 1
 
     while True:
         resp = requests.get(url, timeout=30)
         resp.raise_for_status()
         data = resp.json()
         records = data.get("_embedded", {}).get("records", [])
-
-        if first and records:
-            print(f"  (sample balance raw: {records[0].get('balance')})")
-            first = False
 
         for r in records:
             bal = float(r.get("balance", 0)) / STELLAR_SCALE
@@ -53,18 +85,15 @@ def get_circulating_supply_and_holders():
         next_href = data.get("_links", {}).get("next", {}).get("href")
         if not next_href or not records:
             break
-
-        # next_href from stellar.expert is a relative path
         if next_href.startswith("/"):
             next_href = EXPERT_BASE + next_href
         url = next_href
-        page += 1
         time.sleep(0.1)
 
     return round(total_supply, 7), holder_count
 
 
-# ── Historical operations ─────────────────────────────────────────────────────
+# ── Historical operations (Horizon) ────────────────────────────────────────────
 
 def get_all_issuer_operations():
     """Paginate all operations on the issuer account, oldest first."""
@@ -85,7 +114,6 @@ def get_all_issuer_operations():
         next_href = data.get("_links", {}).get("next", {}).get("href")
         if not next_href or not records:
             break
-
         url = next_href
         use_params = False
         page += 1
@@ -96,11 +124,18 @@ def get_all_issuer_operations():
 
 def process_operations(ops):
     """
-    Reconstruct daily supply delta and holder first-seen from operations.
+    Reconstruct daily supply delta from issuer operations:
 
-    Minting  : payment from ISSUER → holder  (supply +)
-    Burning  : payment from holder → ISSUER  (supply -)
-    Clawback : issuer claws back from holder (supply -)
+    Classic payments
+      FROM issuer → holder   : mint   (+)
+      FROM holder → issuer   : burn   (-)
+
+    Soroban invoke_host_function (Soroban SEP-41 token)
+      function "mint"        : mint   (+)  params[-1] = i128 amount
+      function "burn"        : burn   (-)
+      function "clawback"    : burn   (-)
+
+    Holder first-seen is tracked from classic payment recipients only.
     """
     delta_by_date = defaultdict(float)
     holder_first_seen = {}
@@ -111,6 +146,7 @@ def process_operations(ops):
         if not date:
             continue
 
+        # ── Classic payment ──────────────────────────────────────────────────
         if op_type == "payment":
             if op.get("asset_code") != ASSET_CODE or op.get("asset_issuer") != ISSUER:
                 continue
@@ -125,19 +161,49 @@ def process_operations(ops):
             elif dst == ISSUER:
                 delta_by_date[date] -= amount
 
+        # ── Soroban invoke_host_function ─────────────────────────────────────
+        elif op_type == "invoke_host_function":
+            if op.get("function") != "HostFunctionTypeInvokeContract":
+                continue
+
+            params = op.get("parameters", [])
+            # params layout: [contract_address, fn_name, arg0, arg1, ..., amount]
+            if len(params) < 3:
+                continue
+
+            # Decode function name (index 1)
+            _, fn_name = decode_scval(params[1].get("value", ""))
+            if fn_name not in ("mint", "burn", "clawback"):
+                continue
+
+            # Amount is always the last parameter
+            _, raw_amount = decode_scval(params[-1].get("value", ""))
+            if raw_amount is None:
+                print(f"  [warn] could not decode amount for {fn_name} on {date}")
+                continue
+
+            amount = raw_amount / STELLAR_SCALE
+            print(f"  Soroban {fn_name}: {amount:,.2f} EURCV on {date}")
+
+            if fn_name == "mint":
+                delta_by_date[date] += amount
+            else:
+                delta_by_date[date] -= amount
+
+        # ── Clawback (classic) ───────────────────────────────────────────────
         elif op_type == "clawback":
             if op.get("asset_code") != ASSET_CODE or op.get("asset_issuer") != ISSUER:
                 continue
             delta_by_date[date] -= float(op.get("amount", 0))
 
-    # Cumulative supply
+    # ── Cumulative supply ────────────────────────────────────────────────────
     supply_history = []
     cumulative = 0.0
     for date in sorted(delta_by_date.keys()):
         cumulative += delta_by_date[date]
-        supply_history.append({"date": date, "supply": round(max(0.0, cumulative), 7)})
+        supply_history.append({"date": date, "supply": round(max(0.0, cumulative), 2)})
 
-    # Holders history (first-seen per address)
+    # ── Holders (first-seen per address) ────────────────────────────────────
     events_by_date = defaultdict(int)
     for date in holder_first_seen.values():
         events_by_date[date] += 1
@@ -193,7 +259,7 @@ def main():
 
     print("Récupération supply + holders via stellar.expert /holders...")
     current_supply, current_holders = get_circulating_supply_and_holders()
-    print(f"  Circulating supply : {current_supply:,.7f} EURCV")
+    print(f"  Circulating supply : {current_supply:,.2f} EURCV")
     print(f"  Holders actifs     : {current_holders}")
 
     print("Récupération des opérations issuer Stellar (Horizon)...")
@@ -201,43 +267,44 @@ def main():
     print(f"Total: {len(ops)} opérations")
 
     supply_history, holders_history = process_operations(ops)
-    print(f"  {len(supply_history)} jours avec activité supply, {len(holders_history)} jours avec activité holders")
+    print(f"  {len(supply_history)} jours avec activité supply")
+    print(f"  {len(holders_history)} jours avec activité holders")
 
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
-    # Supply: override/append today with authoritative current_supply from stellar.expert
+    # Override/append today with authoritative current_supply from stellar.expert
     if supply_history and supply_history[-1]["date"] == today:
         supply_history[-1]["supply"] = current_supply
     else:
         supply_history.append({"date": today, "supply": current_supply})
 
-    # If operations gave nothing, fall back to a single point at creation date
+    # Fallback: if no ops found at all, flat line from creation date
     if len(supply_history) == 1 and created_date and created_date < today:
+        print("  Avertissement: aucune opération trouvée — ligne plate utilisée.")
         supply_history = [
             {"date": created_date, "supply": current_supply},
             {"date": today,        "supply": current_supply},
         ]
-        print("  Avertissement: aucune opération de supply trouvée, utilisation d'une ligne plate.")
 
-    # Holders: append/override today with authoritative count
+    # Override/append today's holders
     if holders_history and holders_history[-1]["date"] == today:
         holders_history[-1]["holders"] = current_holders
     else:
         holders_history.append({"date": today, "holders": current_holders})
 
     if not supply_history:
-        print("Aucune opération EURCV trouvée.")
+        print("Aucune donnée supply trouvée.")
         return
 
     from datetime import timedelta
     start_date = supply_history[0]["date"]
-    # Fetch rates starting 7 days before to always have a rate to fall back on
-    rates_start = (datetime.strptime(start_date, "%Y-%m-%d") - timedelta(days=7)).strftime("%Y-%m-%d")
+    rates_start = (
+        datetime.strptime(start_date, "%Y-%m-%d") - timedelta(days=7)
+    ).strftime("%Y-%m-%d")
     print(f"Récupération taux EUR/USD depuis le {rates_start}...")
     eur_usd_rates = fetch_eur_usd_rates(rates_start)
 
-    # Pre-seed last_rate with the most recent available rate so forward-fill
-    # works even when supply_history contains only today (rate may lag by a day)
+    # Pre-seed latest rate for any supply date missing a rate
     if eur_usd_rates:
         seed_rate = eur_usd_rates[max(eur_usd_rates.keys())]
         for item in supply_history:
@@ -252,9 +319,10 @@ def main():
     with open("data/stellar_holders.json", "w") as f:
         json.dump(holders_history, f)
 
-    print(f"Sauvegardé : {len(marketcap_history)} points market cap, {len(holders_history)} points holders")
-    if marketcap_history:
-        print(f"  Dernier point : {marketcap_history[-1]}")
+    print(f"Sauvegardé : {len(marketcap_history)} points market cap, "
+          f"{len(holders_history)} points holders")
+    for pt in marketcap_history:
+        print(f"  {pt['date']} : supply={pt['supply']:,.2f}  mcap=${pt['marketcap']:,.2f}")
 
 
 if __name__ == "__main__":
