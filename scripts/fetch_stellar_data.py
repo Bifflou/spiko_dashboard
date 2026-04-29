@@ -8,6 +8,8 @@ from collections import defaultdict
 from datetime import datetime, timezone
 
 ISSUER        = "GCEYGIVOLAVBF2TG2RUSGTUJCIN75KEX3NGLMY4VPL4GFE5L355AXW3G"
+ADMIN         = "GCYYFR4SR4RDSWTN64LSE4BGF2UQEDYZ32QTD7TMQXO6TXSGEDWP652D"
+CONTRACT      = "CANKBYNNAYKEZXLB655F2UPNTAZFK5HILZUXL7ZTFR3NF6LKDSVY7KFH"
 ASSET_CODE    = "EURCV"
 HORIZON       = "https://horizon.stellar.org"
 EXPERT_BASE   = "https://api.stellar.expert"
@@ -95,10 +97,10 @@ def get_circulating_supply_and_holders():
 
 # ── Historical operations (Horizon) ────────────────────────────────────────────
 
-def get_all_issuer_operations():
-    """Paginate all operations on the issuer account, oldest first."""
+def get_account_operations(account, label="account"):
+    """Paginate all operations on an account, oldest first."""
     all_ops = []
-    url = f"{HORIZON}/accounts/{ISSUER}/operations"
+    url = f"{HORIZON}/accounts/{account}/operations"
     params = {"order": "asc", "limit": 200}
     use_params = True
     page = 1
@@ -109,7 +111,7 @@ def get_all_issuer_operations():
         data = resp.json()
         records = data.get("_embedded", {}).get("records", [])
         all_ops.extend(records)
-        print(f"  Page {page}: {len(records)} ops (total: {len(all_ops)})")
+        print(f"  [{label}] Page {page}: {len(records)} ops (total: {len(all_ops)})")
 
         next_href = data.get("_links", {}).get("next", {}).get("href")
         if not next_href or not records:
@@ -131,9 +133,10 @@ def process_operations(ops):
       FROM holder → issuer   : burn   (-)
 
     Soroban invoke_host_function (Soroban SEP-41 token)
-      function "mint"        : mint   (+)  params[-1] = i128 amount
-      function "burn"        : burn   (-)
-      function "clawback"    : burn   (-)
+      function "mint"            : mint   (+)  params[-1] = i128 amount
+      function "mint_to_account" : mint   (+)  params[-1] = i128 amount
+      function "burn"            : burn   (-)
+      function "clawback"        : burn   (-)
 
     Holder first-seen is tracked from classic payment recipients only.
     """
@@ -163,7 +166,7 @@ def process_operations(ops):
 
         # ── Soroban invoke_host_function ─────────────────────────────────────
         elif op_type == "invoke_host_function":
-            if op.get("function") != "HostFunctionTypeInvokeContract":
+            if not op.get("function", "").endswith("InvokeContract"):
                 continue
 
             params = op.get("parameters", [])
@@ -173,7 +176,7 @@ def process_operations(ops):
 
             # Decode function name (index 1)
             _, fn_name = decode_scval(params[1].get("value", ""))
-            if fn_name not in ("mint", "burn", "clawback"):
+            if fn_name not in ("mint", "mint_to_account", "burn", "clawback"):
                 continue
 
             # Amount is always the last parameter
@@ -185,7 +188,7 @@ def process_operations(ops):
             amount = raw_amount / STELLAR_SCALE
             print(f"  Soroban {fn_name}: {amount:,.2f} EURCV on {date}")
 
-            if fn_name == "mint":
+            if fn_name in ("mint", "mint_to_account"):
                 delta_by_date[date] += amount
             else:
                 delta_by_date[date] -= amount
@@ -263,8 +266,23 @@ def main():
     print(f"  Holders actifs     : {current_holders}")
 
     print("Récupération des opérations issuer Stellar (Horizon)...")
-    ops = get_all_issuer_operations()
-    print(f"Total: {len(ops)} opérations")
+    ops_issuer = get_account_operations(ISSUER, label="issuer")
+    print(f"  Issuer: {len(ops_issuer)} opérations")
+
+    print("Récupération des opérations admin Stellar (Horizon)...")
+    ops_admin = get_account_operations(ADMIN, label="admin")
+    print(f"  Admin: {len(ops_admin)} opérations")
+
+    # Merge and deduplicate by operation id, sort by created_at
+    seen_ids = set()
+    ops = []
+    for op in ops_issuer + ops_admin:
+        oid = op.get("id")
+        if oid not in seen_ids:
+            seen_ids.add(oid)
+            ops.append(op)
+    ops.sort(key=lambda o: o.get("created_at", ""))
+    print(f"Total: {len(ops)} opérations (dédupliquées)")
 
     supply_history, holders_history = process_operations(ops)
     print(f"  {len(supply_history)} jours avec activité supply")
