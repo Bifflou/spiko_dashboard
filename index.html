@@ -48,6 +48,76 @@
       font-style: italic;
     }
 
+    /* KPI cards */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1.25rem;
+      margin-bottom: 2rem;
+    }
+
+    @media (max-width: 1100px) { .kpi-grid { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 600px)  { .kpi-grid { grid-template-columns: 1fr; } }
+
+    .kpi-card {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 10px;
+      padding: 1.25rem 1.5rem;
+    }
+
+    .kpi-label {
+      font-size: 0.7rem;
+      font-weight: 600;
+      color: #484f58;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 0.7rem;
+    }
+
+    .kpi-main {
+      font-size: 1.75rem;
+      font-weight: 700;
+      color: #f0f6fc;
+      line-height: 1.15;
+    }
+
+    .kpi-main-sub {
+      font-size: 0.8rem;
+      color: #8b949e;
+      margin-top: 0.15rem;
+    }
+
+    .kpi-variation {
+      font-size: 0.76rem;
+      font-weight: 600;
+      margin-top: 0.3rem;
+    }
+    .kpi-variation.pos { color: #3fb950; }
+    .kpi-variation.neg { color: #f85149; }
+
+    .kpi-details {
+      margin-top: 0.8rem;
+      padding-top: 0.8rem;
+      border-top: 1px solid #21262d;
+      display: flex;
+      flex-direction: column;
+      gap: 0.3rem;
+    }
+
+    .kpi-row {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 0.78rem;
+    }
+
+    .kpi-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+    .kpi-row-name  { color: #8b949e; flex: 1; min-width: 0; white-space: nowrap; }
+    .kpi-row-val   { color: #e6edf3; font-weight: 500; white-space: nowrap; }
+    .kpi-row-pct   { color: #484f58; font-size: 0.7rem; white-space: nowrap; }
+    .kpi-note-tiny { margin-top: 0.4rem; font-size: 0.67rem; color: #484f58; font-style: italic; }
+
     /* Two-column layout */
     .dashboard-cols {
       display: grid;
@@ -198,6 +268,14 @@
     <h1>CoinVertible Dashboard</h1>
     <p>Supply · Données on-chain · EURCV &amp; USDCV par Société Générale</p>
   </header>
+
+  <!-- ── KPI Cards ── -->
+  <div class="kpi-grid">
+    <div class="kpi-card" id="kpi-total-mcap"></div>
+    <div class="kpi-card" id="kpi-chain-mcap"></div>
+    <div class="kpi-card" id="kpi-total-holders"></div>
+    <div class="kpi-card" id="kpi-chain-holders"></div>
+  </div>
 
   <!-- ── Global Overview ── -->
   <div class="global-overview">
@@ -664,6 +742,156 @@
       });
     }
 
+    // ── KPI helpers ─────────────────────────────────────────────────────────────
+    function getLatestValue(series, key) {
+      if (!series || !series.length) return 0;
+      for (let i = series.length - 1; i >= 0; i--) {
+        const v = series[i][key];
+        if (v != null && v > 0) return v;
+      }
+      return 0;
+    }
+
+    function fmtKpiMcap(v) {
+      if (v >= 1e9) return '$' + (v / 1e9).toFixed(2) + 'B';
+      if (v >= 1e6) return '$' + (v / 1e6).toFixed(2) + 'M';
+      if (v >= 1e3) return '$' + (v / 1e3).toFixed(1) + 'K';
+      return '$ ' + fmtSpaced(Math.round(v));
+    }
+
+    function fmtDetailMcap(v) {
+      return '$ ' + fmtSpaced(Math.round(v));
+    }
+
+    function pct(part, total) {
+      return total > 0 ? (part / total * 100).toFixed(1) + '%' : '—';
+    }
+
+    function buildKpiCards() {
+      // Chain metadata
+      const ALL_CHAINS = [
+        { label: 'Ethereum',   color: '#627EEA' },
+        { label: 'Solana',     color: '#9945FF' },
+        { label: 'XRP Ledger', color: '#00B4A0' },
+        { label: 'Stellar',    color: '#2D9CDB' },
+      ];
+      const TOKEN_META = [
+        { label: 'EURCV', color: '#6B7FD4' },
+        { label: 'USDCV', color: '#9B6DC5' },
+      ];
+
+      // ── Latest market cap per chain & token ────────────────────────────────
+      const eurcvMcapLatest = state.eurcv.mcapData.map(s => getLatestValue(s, 'marketcap'));
+      const usdcvMcapLatest = state.usdcv.mcapData.map(s => getLatestValue(s, 'supply'));
+      const eurcvTotal = eurcvMcapLatest.reduce((a, b) => a + b, 0);
+      const usdcvTotal = usdcvMcapLatest.reduce((a, b) => a + b, 0);
+      const grandMcap  = eurcvTotal + usdcvTotal;
+
+      // 24h variation: penultimate point from fully merged series
+      const allMcapMerged = mergeSeries([
+        ...state.eurcv.mcapData.map(s => ({ series: s, key: 'marketcap' })),
+        ...state.usdcv.mcapData.map(s => ({ series: s, key: 'supply' })),
+      ]);
+      const prevMcap   = allMcapMerged.length >= 2 ? allMcapMerged[allMcapMerged.length - 2].value : null;
+      const variation  = prevMcap != null ? grandMcap - prevMcap : null;
+
+      // ── Per-chain market cap ───────────────────────────────────────────────
+      const chainMcaps = ALL_CHAINS.map((ch, i) => ({
+        ...ch,
+        value: (eurcvMcapLatest[i] || 0) + (i < usdcvMcapLatest.length ? usdcvMcapLatest[i] : 0),
+      })).sort((a, b) => b.value - a.value);
+
+      // ── Latest holders per chain & token ──────────────────────────────────
+      const eurcvHoldLatest = state.eurcv.holdersData.map(s => getLatestValue(s, 'holders'));
+      const usdcvHoldLatest = state.usdcv.holdersData.map(s => getLatestValue(s, 'holders'));
+      const eurcvHoldTotal  = eurcvHoldLatest.reduce((a, b) => a + b, 0);
+      const usdcvHoldTotal  = usdcvHoldLatest.reduce((a, b) => a + b, 0);
+      const grandHolders    = eurcvHoldTotal + usdcvHoldTotal;
+
+      // ── Per-chain holders ─────────────────────────────────────────────────
+      const chainHolders = ALL_CHAINS.map((ch, i) => ({
+        ...ch,
+        value: (eurcvHoldLatest[i] || 0) + (i < usdcvHoldLatest.length ? usdcvHoldLatest[i] : 0),
+      })).sort((a, b) => b.value - a.value);
+
+      // ── Render Card 1 — Total Market Cap ──────────────────────────────────
+      const varHtml = variation != null ? (() => {
+        const sign = variation >= 0 ? '+' : '';
+        const cls  = variation >= 0 ? 'pos' : 'neg';
+        const varPct = prevMcap > 0 ? (variation / prevMcap * 100).toFixed(2) : '0.00';
+        return `<div class="kpi-variation ${cls}">${sign}${fmtKpiMcap(Math.abs(variation)).replace('$','$')} (${sign}${varPct}%)</div>`;
+      })() : '';
+
+      document.getElementById('kpi-total-mcap').innerHTML = `
+        <div class="kpi-label">Total Market Cap</div>
+        <div class="kpi-main">${fmtKpiMcap(grandMcap)}</div>
+        ${varHtml}
+        <div class="kpi-details">
+          ${TOKEN_META.map((t, i) => {
+            const val = i === 0 ? eurcvTotal : usdcvTotal;
+            return `<div class="kpi-row">
+              <div class="kpi-dot" style="background:${t.color}"></div>
+              <span class="kpi-row-name">${t.label}</span>
+              <span class="kpi-row-val">${fmtDetailMcap(val)}</span>
+              <span class="kpi-row-pct">(${pct(val, grandMcap)})</span>
+            </div>`;
+          }).join('')}
+        </div>`;
+
+      // ── Render Card 2 — Market Cap by Chain ───────────────────────────────
+      const [topChainMcap, ...otherChainsMcap] = chainMcaps.filter(c => c.value > 0);
+      document.getElementById('kpi-chain-mcap').innerHTML = `
+        <div class="kpi-label">Market Cap par Chaîne</div>
+        ${topChainMcap ? `
+          <div class="kpi-main">${fmtKpiMcap(topChainMcap.value)}</div>
+          <div class="kpi-main-sub" style="color:${topChainMcap.color}">${topChainMcap.label}</div>
+        ` : '<div class="kpi-main">—</div>'}
+        <div class="kpi-details">
+          ${otherChainsMcap.map(c => `
+            <div class="kpi-row">
+              <div class="kpi-dot" style="background:${c.color}"></div>
+              <span class="kpi-row-name">${c.label}</span>
+              <span class="kpi-row-val">${fmtDetailMcap(c.value)}</span>
+              <span class="kpi-row-pct">(${pct(c.value, grandMcap)})</span>
+            </div>`).join('')}
+        </div>`;
+
+      // ── Render Card 3 — Total Holders ─────────────────────────────────────
+      document.getElementById('kpi-total-holders').innerHTML = `
+        <div class="kpi-label">Total Holders</div>
+        <div class="kpi-main">${fmtSpaced(grandHolders)}</div>
+        <div class="kpi-note-tiny">* comptage cross-chaîne non dédupliqué</div>
+        <div class="kpi-details">
+          ${TOKEN_META.map((t, i) => {
+            const val = i === 0 ? eurcvHoldTotal : usdcvHoldTotal;
+            return `<div class="kpi-row">
+              <div class="kpi-dot" style="background:${t.color}"></div>
+              <span class="kpi-row-name">${t.label}</span>
+              <span class="kpi-row-val">${fmtSpaced(val)}</span>
+              <span class="kpi-row-pct">(${pct(val, grandHolders)})</span>
+            </div>`;
+          }).join('')}
+        </div>`;
+
+      // ── Render Card 4 — Holders by Chain ──────────────────────────────────
+      const [topChainH, ...othersH] = chainHolders.filter(c => c.value > 0);
+      document.getElementById('kpi-chain-holders').innerHTML = `
+        <div class="kpi-label">Holders par Chaîne</div>
+        ${topChainH ? `
+          <div class="kpi-main">${fmtSpaced(topChainH.value)}</div>
+          <div class="kpi-main-sub" style="color:${topChainH.color}">${topChainH.label}</div>
+        ` : '<div class="kpi-main">—</div>'}
+        <div class="kpi-details">
+          ${othersH.map(c => `
+            <div class="kpi-row">
+              <div class="kpi-dot" style="background:${c.color}"></div>
+              <span class="kpi-row-name">${c.label}</span>
+              <span class="kpi-row-val">${fmtSpaced(c.value)}</span>
+              <span class="kpi-row-pct">(${pct(c.value, grandHolders)})</span>
+            </div>`).join('')}
+        </div>`;
+    }
+
     // ── Global overview helpers ─────────────────────────────────────────────────
     const GLOBAL_TOKEN_CHAINS = [
       { label: 'EURCV', color: '#6B7FD4' },
@@ -840,6 +1068,7 @@
       state.usdcv.mcapData    = usdcvMcapRaw.map(s => applyUsdcvRates(s, eurusdRates));
       state.usdcv.holdersData = usdcvHolders;
 
+      buildKpiCards();
       buildGlobalCharts();
       rebuildChart('eurcv', 'mcap');
       rebuildChart('eurcv', 'holders');
