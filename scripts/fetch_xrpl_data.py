@@ -74,7 +74,7 @@ def get_circulating_supply_and_holders():
         page += 1
         time.sleep(0.15)
 
-    return round(total_supply, 6), holders
+    return round(total_supply, 6), holders + 1  # +1 for the issuer account itself
 
 
 # ── Fetch all issuer transactions ─────────────────────────────────────────────
