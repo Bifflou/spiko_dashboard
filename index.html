@@ -511,30 +511,30 @@
       const today = new Date().toISOString().slice(0, 10);
 
       // Read cache
-      let cached = { rates: {}, ts: 0 };
-      try { cached = JSON.parse(localStorage.getItem(EURUSD_CACHE_KEY)) || cached; } catch {}
+      let storedRates = {}, cacheTs = 0;
+      try {
+        const raw = localStorage.getItem(EURUSD_CACHE_KEY);
+        if (raw) { const p = JSON.parse(raw); storedRates = p.rates ?? {}; cacheTs = p.ts ?? 0; }
+      } catch {}
 
-      const storedRates  = cached.rates || {};
-      const storedDates  = Object.keys(storedRates).sort();
-      const lastStored   = storedDates[storedDates.length - 1] || null;
-      const cacheAge     = Date.now() - (cached.ts || 0);
-      const cacheFresh   = cacheAge < 24 * 3600 * 1000;
+      const storedDates = Object.keys(storedRates).sort();
+      const lastStored  = storedDates[storedDates.length - 1] ?? null;
+      const cacheFresh  = (Date.now() - cacheTs) < 24 * 3600 * 1000;
 
-      // Fetch only if cache is stale or doesn't cover today
-      if (!lastStored || !cacheFresh || lastStored < today) {
+      if (!cacheFresh || !lastStored || lastStored < today) {
         try {
-          const fetchFrom = lastStored || startDate; // only missing tail
-          const url = `https://api.frankfurter.app/${fetchFrom}..${today}?from=EUR&to=USD`;
-          const resp = await fetch(url);
-          if (!resp.ok) throw new Error(resp.status);
-          const data = await resp.json();
-          for (const [date, vals] of Object.entries(data.rates || {}))
+          const fetchFrom = lastStored ?? startDate;
+          // Open-ended (..) — same format as Python scripts, no end-date ambiguity
+          const url  = `https://api.frankfurter.app/${fetchFrom}..?from=EUR&to=USD`;
+          const resp = await fetch(url, { headers: { Accept: 'application/json' } });
+          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+          const json = await resp.json();
+          for (const [date, vals] of Object.entries(json.rates ?? {}))
             storedRates[date] = vals.USD;
-          try {
-            localStorage.setItem(EURUSD_CACHE_KEY,
-              JSON.stringify({ rates: storedRates, ts: Date.now() }));
-          } catch {}
-        } catch {
+          localStorage.setItem(EURUSD_CACHE_KEY,
+            JSON.stringify({ rates: storedRates, ts: Date.now() }));
+        } catch (e) {
+          console.warn('[EUR/USD] Frankfurter fetch failed:', e.message ?? e);
           if (!lastStored)
             document.getElementById('rate-warning').style.display = '';
         }
