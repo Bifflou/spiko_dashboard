@@ -621,7 +621,9 @@
         }).join('');
 
         const rate = getRateForDate(isoDate);
-        const rateFooter = rate ? `<div class="tt-rate">1 € = ${rate.toFixed(4)} $</div>` : '';
+        const rateFooter = rate
+          ? `<div class="tt-rate">${currentCurrency === 'EUR' ? `1 $ = ${(1/rate).toFixed(4)} €` : `1 € = ${rate.toFixed(4)} $`}</div>`
+          : '';
 
         el.innerHTML = `
           <div class="tt-header">
