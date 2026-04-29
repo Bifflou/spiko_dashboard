@@ -129,6 +129,7 @@
     .tt-dot   { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
     .tt-label { color: #8b949e; flex: 1; }
     .tt-value { color: #e6edf3; font-weight: 500; white-space: nowrap; }
+    .tt-rate  { margin-top: 6px; padding-top: 6px; border-top: 1px solid #30363d; color: #8b949e; font-size: 0.72rem; text-align: right; }
   </style>
 </head>
 <body>
@@ -254,7 +255,16 @@
     }
 
     // External tooltip for line charts
-    function makeTooltipHandler(fmtVal, paired) {
+    function makeTooltipHandler(fmtVal, paired, rates) {
+      // Forward-fill: find the last known rate on or before a given date
+      function getRateForDate(date) {
+        if (!rates) return null;
+        const entries = Object.keys(rates).sort();
+        let last = null;
+        for (const d of entries) { if (d <= date) last = rates[d]; else break; }
+        return last;
+      }
+
       return function({ chart, tooltip }) {
         let el = chart._ttEl;
         if (!el) {
@@ -284,12 +294,18 @@
           </div>`;
         }).join('');
 
+        const rate = getRateForDate(date);
+        const rateFooter = rate
+          ? `<div class="tt-rate">1 € = ${rate.toFixed(4)} $</div>`
+          : '';
+
         el.innerHTML = `
           <div class="tt-header">
             <span class="tt-date">${date}</span>
             <span class="tt-total">${fmtVal(total)}</span>
           </div>
           ${rows}
+          ${rateFooter}
         `;
 
         const cx = tooltip.caretX;
@@ -302,7 +318,7 @@
     }
 
     // ── Line chart ──────────────────────────────────────────────────────────────
-    function buildLineChart(canvasId, stackedData, fmtVal, fmtAxis) {
+    function buildLineChart(canvasId, stackedData, fmtVal, fmtAxis, rates) {
       const { labels, paired, filled } = stackedData;
       const ctx = document.getElementById(canvasId).getContext('2d');
 
@@ -338,7 +354,7 @@
               align: 'end',
               labels: { color: '#8b949e', usePointStyle: true, pointStyle: 'circle', boxWidth: 8, padding: 16, font: { size: 12 } },
             },
-            tooltip: { enabled: false, external: makeTooltipHandler(fmtVal, paired) },
+            tooltip: { enabled: false, external: makeTooltipHandler(fmtVal, paired, rates) },
           },
           scales: {
             x: { ticks: { color: '#8b949e', maxTicksLimit: 8, maxRotation: 0 }, grid: { color: '#21262d' } },
@@ -549,7 +565,7 @@
       const fmtAxis  = currentCurrency === 'USD' ? fmtAxisUSD : fmtAxisEUR;
 
       if (mcapViewMode === 'line') {
-        mcapChartInstance = buildLineChart('chart-mcap', buildStacked(mcapSeriesData, valueKey), fmtVal, fmtAxis);
+        mcapChartInstance = buildLineChart('chart-mcap', buildStacked(mcapSeriesData, valueKey), fmtVal, fmtAxis, eurusdRates);
       } else {
         mcapChartInstance = buildPieChart('chart-mcap', mcapSeriesData, valueKey, fmtVal);
       }
