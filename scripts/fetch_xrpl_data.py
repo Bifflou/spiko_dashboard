@@ -58,12 +58,14 @@ def get_circulating_supply_and_holders():
 
         result = xrpl_post("account_lines", params)
         for line in result.get("lines", []):
-            if line.get("currency", "").upper() != CURRENCY_HEX.upper():
-                continue
+            currency = line.get("currency", "")
             balance = float(line.get("balance", 0))
-            if balance < 0:  # issuer owes this amount → holder has tokens
+            print(f"  line: account={line.get('account')} currency={currency!r} balance={balance}")
+            if currency.upper() != CURRENCY_HEX.upper():
+                continue
+            if balance < 0:
                 total_supply += abs(balance)
-            if balance != 0:  # any non-zero balance = active holder (incl. issuer-side)
+            if balance != 0:
                 holders += 1
 
         marker = result.get("marker")
@@ -74,7 +76,7 @@ def get_circulating_supply_and_holders():
         page += 1
         time.sleep(0.15)
 
-    return round(total_supply, 6), holders + 1  # +1 for the issuer account itself
+    return round(total_supply, 6), holders
 
 
 # ── Fetch all issuer transactions ─────────────────────────────────────────────
