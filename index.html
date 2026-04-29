@@ -20,6 +20,34 @@
     header h1 { font-size: 1.6rem; font-weight: 700; color: #f0f6fc; }
     header p { margin-top: 0.35rem; font-size: 0.85rem; color: #8b949e; }
 
+    /* Global overview */
+    .section-title {
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: #484f58;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      margin-bottom: 1rem;
+    }
+
+    .global-overview { margin-bottom: 2.5rem; max-width: 2200px; }
+
+    .global-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1.25rem;
+    }
+
+    @media (max-width: 1400px) { .global-grid { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 700px)  { .global-grid { grid-template-columns: 1fr; } }
+
+    .holders-note {
+      margin-top: 0.6rem;
+      font-size: 0.72rem;
+      color: #484f58;
+      font-style: italic;
+    }
+
     /* Two-column layout */
     .dashboard-cols {
       display: grid;
@@ -171,6 +199,43 @@
     <h1>CoinVertible Dashboard</h1>
     <p>Supply · Données on-chain · EURCV &amp; USDCV par Société Générale</p>
   </header>
+
+  <!-- ── Global Overview ── -->
+  <div class="global-overview">
+    <p class="section-title">Global Overview</p>
+    <div class="global-grid">
+
+      <div class="card">
+        <div class="card-header">
+          <h2>Total Market Cap par Token (USD)</h2>
+        </div>
+        <div class="chart-wrap"><canvas id="chart-global-mcap-token"></canvas></div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h2>Total Market Cap par Chaîne (USD)</h2>
+        </div>
+        <div class="chart-wrap"><canvas id="chart-global-mcap-chain"></canvas></div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h2>Total Holders par Token</h2>
+        </div>
+        <div class="chart-wrap"><canvas id="chart-global-holders-token"></canvas></div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h2>Total Holders par Chaîne</h2>
+        </div>
+        <div class="chart-wrap"><canvas id="chart-global-holders-chain"></canvas></div>
+      </div>
+
+    </div>
+    <p class="holders-note">* Les holders peuvent être comptés plusieurs fois si présents sur plusieurs chaînes</p>
+  </div>
 
   <div class="dashboard-cols">
 
@@ -600,6 +665,96 @@
       });
     }
 
+    // ── Global overview helpers ─────────────────────────────────────────────────
+    const GLOBAL_TOKEN_CHAINS = [
+      { label: 'EURCV', color: '#6B7FD4' },
+      { label: 'USDCV', color: '#9B6DC5' },
+    ];
+
+    const GLOBAL_CHAIN_CHAINS = [
+      { label: 'Ethereum',   color: '#627EEA' },
+      { label: 'Solana',     color: '#9945FF' },
+      { label: 'XRP Ledger', color: '#00B4A0' },
+      { label: 'Stellar',    color: '#2D9CDB' },
+    ];
+
+    // Merge N series [{series, key}] → [{date, value}] summed per day with forward-fill
+    function mergeSeries(inputs) {
+      const allDates = [...new Set(inputs.flatMap(({ series }) => (series || []).map(d => d.date)))].sort();
+      if (!allDates.length) return [];
+
+      const maps = inputs.map(({ series, key }) => {
+        const map = Object.fromEntries((series || []).map(d => [d.date, d[key] || 0]));
+        let last = 0;
+        const filled = {};
+        for (const date of allDates) {
+          if (date in map) last = map[date];
+          filled[date] = last;
+        }
+        return filled;
+      });
+
+      return allDates.map(date => ({
+        date,
+        value: maps.reduce((sum, m) => sum + (m[date] || 0), 0),
+      }));
+    }
+
+    function buildGlobalCharts() {
+      // ── Market Cap by Token (USD) ───────────────────────────────────────────
+      const eurcvMcapTotal = mergeSeries(state.eurcv.mcapData.map(s => ({ series: s, key: 'marketcap' })));
+      const usdcvMcapTotal = mergeSeries(state.usdcv.mcapData.map(s => ({ series: s, key: 'supply' })));
+
+      buildLineChart(
+        'chart-global-mcap-token',
+        buildStacked(GLOBAL_TOKEN_CHAINS, [eurcvMcapTotal, usdcvMcapTotal], 'value'),
+        fmtUSD, fmtAxisUSD, eurusdRates
+      );
+
+      // ── Market Cap by Chain (USD) ───────────────────────────────────────────
+      // EURCV chains: [ETH=0, SOL=1, XRPL=2, Stellar=3]
+      // USDCV chains: [ETH=0, SOL=1]
+      const chainMcapSeries = [
+        mergeSeries([{ series: state.eurcv.mcapData[0], key: 'marketcap' }, { series: state.usdcv.mcapData[0], key: 'supply' }]),
+        mergeSeries([{ series: state.eurcv.mcapData[1], key: 'marketcap' }, { series: state.usdcv.mcapData[1], key: 'supply' }]),
+        mergeSeries([{ series: state.eurcv.mcapData[2], key: 'marketcap' }]),
+        mergeSeries([{ series: state.eurcv.mcapData[3], key: 'marketcap' }]),
+      ];
+
+      buildLineChart(
+        'chart-global-mcap-chain',
+        buildStacked(GLOBAL_CHAIN_CHAINS, chainMcapSeries, 'value'),
+        fmtUSD, fmtAxisUSD, eurusdRates
+      );
+
+      // ── Holders by Token ────────────────────────────────────────────────────
+      const eurcvHoldersTotal = mergeSeries(state.eurcv.holdersData.map(s => ({ series: s, key: 'holders' })));
+      const usdcvHoldersTotal = mergeSeries(state.usdcv.holdersData.map(s => ({ series: s, key: 'holders' })));
+
+      const fmtH     = v => fmtSpaced(v) + ' holders';
+      const fmtAxisH = v => fmtSpaced(v);
+
+      buildLineChart(
+        'chart-global-holders-token',
+        buildStacked(GLOBAL_TOKEN_CHAINS, [eurcvHoldersTotal, usdcvHoldersTotal], 'value'),
+        fmtH, fmtAxisH
+      );
+
+      // ── Holders by Chain ────────────────────────────────────────────────────
+      const chainHoldersSeries = [
+        mergeSeries([{ series: state.eurcv.holdersData[0], key: 'holders' }, { series: state.usdcv.holdersData[0], key: 'holders' }]),
+        mergeSeries([{ series: state.eurcv.holdersData[1], key: 'holders' }, { series: state.usdcv.holdersData[1], key: 'holders' }]),
+        mergeSeries([{ series: state.eurcv.holdersData[2], key: 'holders' }]),
+        mergeSeries([{ series: state.eurcv.holdersData[3], key: 'holders' }]),
+      ];
+
+      buildLineChart(
+        'chart-global-holders-chain',
+        buildStacked(GLOBAL_CHAIN_CHAINS, chainHoldersSeries, 'value'),
+        fmtH, fmtAxisH
+      );
+    }
+
     // ── State ───────────────────────────────────────────────────────────────────
     let currentCurrency = 'USD';
     let eurusdRates     = {};
@@ -686,6 +841,7 @@
       state.usdcv.mcapData    = usdcvMcapRaw.map(s => applyUsdcvRates(s, eurusdRates));
       state.usdcv.holdersData = usdcvHolders;
 
+      buildGlobalCharts();
       rebuildChart('eurcv', 'mcap');
       rebuildChart('eurcv', 'holders');
       rebuildChart('usdcv', 'mcap');
