@@ -364,11 +364,7 @@
       const active  = CHAINS.map((chain, i) => ({ chain, value: values[i] })).filter(d => d.value > 0);
       const baseBg  = active.map(d => d.chain.color + 'CC');
 
-      // Custom plugin: labels with pointer lines + collision avoidance
-      const LABEL_H = 27;  // min vertical gap between label centres (px)
-      const R_EXT   = 20;  // radial extension from pie edge
-      const ELBOW   = 14;  // horizontal elbow length
-
+      // Custom plugin: rwa.xyz-style labels with pointer lines
       const outerLabelsPlugin = {
         id: 'outerLabels_' + canvasId,
         afterDraw(chart) {
@@ -377,78 +373,62 @@
           if (!meta.data.length) return;
           c.save();
 
-          // 1. Compute natural positions for every active label
+          const FONT = '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+
+          // 1. Compute natural label positions (proportional to radius)
           const items = [];
           meta.data.forEach((arc, i) => {
             const value = data.datasets[0].data[i];
             if (!value) return;
-            const mid = (arc.startAngle + arc.endAngle) / 2;
-            const cx = arc.x, cy = arc.y, r = arc.outerRadius;
+            const mid     = (arc.startAngle + arc.endAngle) / 2;
+            const cx      = arc.x, cy = arc.y, r = arc.outerRadius;
             const isRight = Math.cos(mid) >= 0;
-            const x2 = cx + (r + R_EXT) * Math.cos(mid);
-            const y2 = cy + (r + R_EXT) * Math.sin(mid);
-            items.push({
-              i, value,
-              label:   data.labels[i],
-              color:   active[i].chain.color,
-              isRight,
-              x1: cx + (r + 5) * Math.cos(mid), // dot on pie
-              y1: cy + (r + 5) * Math.sin(mid),
-              x2, y2nat: y2,                     // radial end (natural y)
-              elbowX: x2 + (isRight ? ELBOW : -ELBOW),
-              adjY: y2,                           // adjusted y (mutable)
-            });
+            // Start on pie edge (r × 1.05), bend at r × 1.25, then horizontal elbow
+            const x1      = cx + r * 1.05 * Math.cos(mid);
+            const y1      = cy + r * 1.05 * Math.sin(mid);
+            const xMid    = cx + r * 1.25 * Math.cos(mid);
+            const yMid    = cy + r * 1.25 * Math.sin(mid);
+            const xEnd    = xMid + (isRight ? 26 : -26);
+            items.push({ i, value, label: data.labels[i], color: active[i].chain.color,
+                         isRight, x1, y1, xMid, yMid, xEnd, adjY: yMid });
           });
 
-          // 2. Collision avoidance per side — iterative push-apart
-          ['right', 'left'].forEach(side => {
-            const grp = items
-              .filter(d => d.isRight === (side === 'right'))
-              .sort((a, b) => a.adjY - b.adjY);
-            let changed = true, iter = 0;
-            while (changed && iter++ < 60) {
-              changed = false;
-              for (let k = 1; k < grp.length; k++) {
-                const gap = grp[k].adjY - grp[k - 1].adjY;
-                if (gap < LABEL_H) {
-                  const push = (LABEL_H - gap) / 2;
-                  grp[k - 1].adjY -= push;
-                  grp[k].adjY     += push;
-                  changed = true;
-                }
-              }
-            }
-          });
+          // 2. Anti-collision: sort all by Y, push down if gap < 18px
+          items.sort((a, b) => a.adjY - b.adjY);
+          for (let k = 1; k < items.length; k++) {
+            if (items[k].adjY - items[k - 1].adjY < 18)
+              items[k].adjY = items[k - 1].adjY + 18;
+          }
 
-          // 3. Draw lines and text
-          items.forEach(({ x1, y1, x2, y2nat, elbowX, adjY, isRight, label, value, color }) => {
-            // Pointer: pie-edge → radial point → adjusted label position
+          // 3. Draw pointer lines and labels
+          items.forEach(({ x1, y1, xMid, yMid, xEnd, adjY, isRight, label, value, color }) => {
+            // Thin line: pie edge → radial bend → horizontal elbow (at adjusted Y)
             c.beginPath();
             c.moveTo(x1, y1);
-            c.lineTo(x2, y2nat);
-            c.lineTo(elbowX, adjY);
+            c.lineTo(xMid, yMid);
+            c.lineTo(xEnd, adjY);
             c.strokeStyle = color;
             c.lineWidth = 1;
             c.stroke();
 
-            // Dot at pie edge
+            // Small circle at pie edge
             c.beginPath();
             c.arc(x1, y1, 2, 0, Math.PI * 2);
             c.fillStyle = color;
             c.fill();
 
-            // Labels: chain name + formatted value
-            const tx = elbowX + (isRight ? 6 : -6);
+            // Label text: name (normal) then amount (bold)
+            const tx = xEnd + (isRight ? 5 : -5);
             c.textAlign    = isRight ? 'left' : 'right';
             c.textBaseline = 'alphabetic';
 
+            c.font      = `12px ${FONT}`;
             c.fillStyle = '#c9d1d9';
-            c.font = '600 11.5px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-            c.fillText(label, tx, adjY - 5);
+            c.fillText(label, tx, adjY - 4);
 
-            c.fillStyle = '#8b949e';
-            c.font = '11.5px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-            c.fillText(fmtVal(value), tx, adjY + 9);
+            c.font      = `bold 13px ${FONT}`;
+            c.fillStyle = '#e6edf3';
+            c.fillText(fmtVal(value), tx, adjY + 12);
           });
 
           c.restore();
@@ -475,7 +455,7 @@
         options: {
           responsive: true,
           maintainAspectRatio: false,
-          layout: { padding: { top: 50, bottom: 50, left: 115, right: 115 } },
+          layout: { padding: { top: 60, bottom: 60, left: 120, right: 120 } },
           animation: { animateRotate: true, duration: 800, easing: 'easeInOutQuart' },
           onHover(event, elements, chart) {
             const idx = elements.length > 0 ? elements[0].index : -1;
