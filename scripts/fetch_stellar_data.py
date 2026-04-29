@@ -18,10 +18,13 @@ def iso_to_date(iso):
 
 
 # ── Current state ─────────────────────────────────────────────────────────────
-#
-# Horizon /assets.amount is unreliable for this asset (returns 0 despite active
-# holders). We use stellar.expert /holders instead: paginate all records, sum
-# balances > 0 for circulating supply, count them for holders.
+
+def get_asset_info():
+    """stellar.expert asset endpoint — created timestamp + supply metadata."""
+    resp = requests.get(EXPERT, timeout=30)
+    resp.raise_for_status()
+    return resp.json()
+
 
 def get_circulating_supply_and_holders():
     """stellar.expert /holders — sum(balance) = circulating supply, count = holders."""
@@ -179,6 +182,15 @@ def compute_marketcap(supply_history, eur_usd_rates):
 def main():
     os.makedirs("data", exist_ok=True)
 
+    print("Récupération métadonnées asset via stellar.expert...")
+    asset_info = get_asset_info()
+    created_ts = int(asset_info.get("created", 0))
+    created_date = (
+        datetime.fromtimestamp(created_ts, tz=timezone.utc).strftime("%Y-%m-%d")
+        if created_ts else None
+    )
+    print(f"  Asset créé le : {created_date}")
+
     print("Récupération supply + holders via stellar.expert /holders...")
     current_supply, current_holders = get_circulating_supply_and_holders()
     print(f"  Circulating supply : {current_supply:,.7f} EURCV")
@@ -196,8 +208,16 @@ def main():
 
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
-    # Supply: single authoritative point (today)
-    supply_history = [{"date": today, "supply": current_supply}]
+    # Supply: anchor at creation date so Stellar occupies a meaningful span on
+    # the chart x-axis. Historical supply can't be reconstructed from Horizon
+    # operations, so we show a flat line from creation → today at current supply.
+    if created_date and created_date < today:
+        supply_history = [
+            {"date": created_date, "supply": current_supply},
+            {"date": today,        "supply": current_supply},
+        ]
+    else:
+        supply_history = [{"date": today, "supply": current_supply}]
 
     # Holders: append/override today with authoritative count
     if holders_history and holders_history[-1]["date"] == today:
