@@ -557,6 +557,7 @@
     let holdersSeriesData = null;
     let mcapChartInstance    = null;
     let holdersChartInstance = null;
+    let eurusdRates = {};
 
     function rebuildMcap() {
       if (mcapChartInstance) mcapChartInstance.destroy();
@@ -623,7 +624,7 @@
       const allDates = rawMcapSeries.flat().map(d => d.date).filter(Boolean).sort();
       const startDate = allDates[0] || '2023-01-01';
 
-      const eurusdRates = await loadEurUsdRates();
+      eurusdRates = await loadEurUsdRates();
 
       // Recompute marketcap dynamically: supply × historical EUR/USD rate
       mcapSeriesData = rawMcapSeries.map(series => applyEurUsdRates(series, eurusdRates));
