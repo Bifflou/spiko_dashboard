@@ -503,44 +503,19 @@
       });
     }
 
-    // ── EUR/USD rates (Frankfurter, localStorage cache) ─────────────────────────
-    const FALLBACK_RATE   = 1.08;
-    const EURUSD_CACHE_KEY = 'eurusd_rates_v2';
+    // ── EUR/USD rates (served from data/eurusd_rates.json, updated by CI) ────────
+    const FALLBACK_RATE = 1.08;
 
-    async function loadEurUsdRates(startDate) {
-      const today = new Date().toISOString().slice(0, 10);
-
-      // Read cache
-      let storedRates = {}, cacheTs = 0;
+    async function loadEurUsdRates() {
       try {
-        const raw = localStorage.getItem(EURUSD_CACHE_KEY);
-        if (raw) { const p = JSON.parse(raw); storedRates = p.rates ?? {}; cacheTs = p.ts ?? 0; }
-      } catch {}
-
-      const storedDates = Object.keys(storedRates).sort();
-      const lastStored  = storedDates[storedDates.length - 1] ?? null;
-      const cacheFresh  = (Date.now() - cacheTs) < 24 * 3600 * 1000;
-
-      if (!cacheFresh || !lastStored || lastStored < today) {
-        try {
-          const fetchFrom = lastStored ?? startDate;
-          // Open-ended (..) — same format as Python scripts, no end-date ambiguity
-          const url  = `https://api.frankfurter.app/${fetchFrom}..?from=EUR&to=USD`;
-          const resp = await fetch(url, { headers: { Accept: 'application/json' } });
-          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-          const json = await resp.json();
-          for (const [date, vals] of Object.entries(json.rates ?? {}))
-            storedRates[date] = vals.USD;
-          localStorage.setItem(EURUSD_CACHE_KEY,
-            JSON.stringify({ rates: storedRates, ts: Date.now() }));
-        } catch (e) {
-          console.warn('[EUR/USD] Frankfurter fetch failed:', e.message ?? e);
-          if (!lastStored)
-            document.getElementById('rate-warning').style.display = '';
-        }
+        const resp = await fetch('data/eurusd_rates.json');
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        return await resp.json();
+      } catch (e) {
+        console.warn('[EUR/USD] Failed to load eurusd_rates.json:', e.message ?? e);
+        document.getElementById('rate-warning').style.display = '';
+        return {};
       }
-
-      return storedRates;
     }
 
     // Forward-fill EUR/USD rates onto supply series dates (sorted ascending)
@@ -632,7 +607,7 @@
       const allDates = rawMcapSeries.flat().map(d => d.date).filter(Boolean).sort();
       const startDate = allDates[0] || '2023-01-01';
 
-      const eurusdRates = await loadEurUsdRates(startDate);
+      const eurusdRates = await loadEurUsdRates();
 
       // Recompute marketcap dynamically: supply × historical EUR/USD rate
       mcapSeriesData = rawMcapSeries.map(series => applyEurUsdRates(series, eurusdRates));
