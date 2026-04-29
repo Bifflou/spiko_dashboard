@@ -1082,7 +1082,7 @@
       globalData['mcap-token'].seriesArr = [eurcvMcapTotal, usdcvMcapTotal];
       globalData['mcap-token'].fmtVal    = fmtMcVal;
       globalData['mcap-token'].fmtAxis   = fmtMcAxis;
-      globalData['mcap-token'].useRates  = false;
+      globalData['mcap-token'].useRates  = true;
       rebuildGlobalChart('mcap-token');
 
       // ── Market Cap by Chain ─────────────────────────────────────────────────
@@ -1095,7 +1095,7 @@
       ];
       globalData['mcap-chain'].fmtVal   = fmtMcVal;
       globalData['mcap-chain'].fmtAxis  = fmtMcAxis;
-      globalData['mcap-chain'].useRates = false;
+      globalData['mcap-chain'].useRates = true;
       rebuildGlobalChart('mcap-chain');
 
       // ── Holders by Token ────────────────────────────────────────────────────
