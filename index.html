@@ -230,7 +230,7 @@
         const date = items[0].label;
         const total = items.reduce((s, i) => s + (i.raw || 0), 0);
 
-        const rows = items.map(item => {
+        const rows = [...items].reverse().map(item => {
           const chain = paired.find(p => p.chain.label === item.dataset.label)?.chain || {};
           return `<div class="tt-row">
             <div class="tt-dot" style="background:${chain.color || '#888'}"></div>
