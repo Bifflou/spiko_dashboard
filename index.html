@@ -732,7 +732,7 @@
             });
           });
 
-          const MARGIN = 14;
+          const MARGIN = 30;
           ['right', 'left'].forEach(side => {
             const grp = items.filter(d => d.isRight === (side === 'right')).sort((a, b) => a.adjY - b.adjY);
             if (grp.length < 2) return;
@@ -796,7 +796,7 @@
         options: {
           responsive: true,
           maintainAspectRatio: false,
-          layout: { padding: { top: 70, bottom: 55, left: 120, right: 120 } },
+          layout: { padding: { top: 70, bottom: 75, left: 120, right: 120 } },
           animation: { animateRotate: true, duration: 800, easing: 'easeInOutQuart' },
           onHover(event, elements, chart) {
             const idx = elements.length > 0 ? elements[0].index : -1;
