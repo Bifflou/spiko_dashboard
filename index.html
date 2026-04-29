@@ -710,9 +710,10 @@
           if (!meta.data.length) return;
           c.save();
 
-          const FONT    = '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-          const MIN_GAP = 28;
+          const FONT    = 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+          const MIN_GAP = 44;
           const TICK    = 12;
+          const total   = data.datasets[0].data.reduce((s, v) => s + v, 0);
 
           const items = [];
           meta.data.forEach((arc, i) => {
@@ -767,6 +768,9 @@
             c.font = `bold 13px ${FONT}`;
             c.fillStyle = '#e6edf3';
             c.fillText(fmtVal(value), tx, adjY + 12);
+            c.font = `11px ${FONT}`;
+            c.fillStyle = '#A8B8D8';
+            c.fillText(total > 0 ? (value / total * 100).toFixed(1) + '%' : '', tx, adjY + 26);
           });
 
           c.restore();
