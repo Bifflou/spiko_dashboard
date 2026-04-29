@@ -255,13 +255,13 @@
     }
 
     // External tooltip for line charts
-    function makeTooltipHandler(fmtVal, paired, rates) {
-      // Forward-fill: find the last known rate on or before a given date
-      function getRateForDate(date) {
-        if (!rates) return null;
+    function makeTooltipHandler(fmtVal, paired, rates, rawDates) {
+      // Forward-fill: find the last known rate on or before a given ISO date
+      function getRateForDate(isoDate) {
+        if (!rates || !isoDate) return null;
         const entries = Object.keys(rates).sort();
         let last = null;
-        for (const d of entries) { if (d <= date) last = rates[d]; else break; }
+        for (const d of entries) { if (d <= isoDate) last = rates[d]; else break; }
         return last;
       }
 
@@ -281,6 +281,7 @@
         if (!items.length) return;
 
         const date = items[0].label;
+        const isoDate = rawDates ? rawDates[items[0].dataIndex] : null;
         const activeItems = items.filter(i => (i.raw || 0) > 0);
         if (!activeItems.length) return;
         const total = activeItems.reduce((s, i) => s + i.raw, 0);
@@ -294,7 +295,7 @@
           </div>`;
         }).join('');
 
-        const rate = getRateForDate(date);
+        const rate = getRateForDate(isoDate);
         const rateFooter = rate
           ? `<div class="tt-rate">1 € = ${rate.toFixed(4)} $</div>`
           : '';
@@ -319,7 +320,7 @@
 
     // ── Line chart ──────────────────────────────────────────────────────────────
     function buildLineChart(canvasId, stackedData, fmtVal, fmtAxis, rates) {
-      const { labels, paired, filled } = stackedData;
+      const { labels, rawDates, paired, filled } = stackedData;
       const ctx = document.getElementById(canvasId).getContext('2d');
 
       const datasets = [...paired].reverse().map((p, revIdx) => {
@@ -354,7 +355,7 @@
               align: 'end',
               labels: { color: '#8b949e', usePointStyle: true, pointStyle: 'circle', boxWidth: 8, padding: 16, font: { size: 12 } },
             },
-            tooltip: { enabled: false, external: makeTooltipHandler(fmtVal, paired, rates) },
+            tooltip: { enabled: false, external: makeTooltipHandler(fmtVal, paired, rates, rawDates) },
           },
           scales: {
             x: { ticks: { color: '#8b949e', maxTicksLimit: 8, maxRotation: 0 }, grid: { color: '#21262d' } },
