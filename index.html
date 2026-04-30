@@ -1418,6 +1418,7 @@
           d.fmtVal, stacked.paired, d.useRates ? eurusdRates : null, stacked.rawDates
         );
         d.chart.update();
+        syncModeButtons(id, d.mode);
         return;
       }
 
@@ -1429,6 +1430,14 @@
       } else {
         d.chart = buildPieChart(canvasId, d.seriesArr, d.chains, 'value', d.fmtVal);
       }
+      syncModeButtons(id, d.mode);
+    }
+
+    function syncModeButtons(id, mode) {
+      const btnLine = document.getElementById('global-' + id + '-btn-line');
+      const btnPie  = document.getElementById('global-' + id + '-btn-pie');
+      if (btnLine) btnLine.classList.toggle('active', mode === 'line');
+      if (btnPie)  btnPie.classList.toggle('active',  mode === 'pie');
     }
 
     function setGlobalView(id, mode) {
