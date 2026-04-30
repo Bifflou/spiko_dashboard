@@ -866,6 +866,11 @@
             legend: {
               display: true, position: 'top', align: 'end',
               labels: { color: textSec, usePointStyle: true, pointStyle: 'circle', boxWidth: 8, padding: 16, font: { size: 12 } },
+              onClick(e, legendItem, legend) {
+                const i = legendItem.datasetIndex;
+                const chart = legend.chart;
+                chart.isDatasetVisible(i) ? chart.hide(i) : chart.show(i);
+              },
             },
             tooltip: { enabled: false, external: makeTooltipHandler(fmtVal, paired, rates, rawDates) },
           },
@@ -906,10 +911,12 @@
           const FONT    = 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
           const MIN_GAP = 44;
           const TICK    = 12;
-          const total   = data.datasets[0].data.reduce((s, v) => s + v, 0);
+          // Total only counts visible (non-hidden) items
+          const total   = data.datasets[0].data.reduce((s, v, i) => chart.getDataVisibility(i) ? s + v : s, 0);
 
           const items = [];
           meta.data.forEach((arc, i) => {
+            if (!chart.getDataVisibility(i)) return;   // skip hidden slices
             const value = data.datasets[0].data[i];
             if (!value) return;
             const mid     = (arc.startAngle + arc.endAngle) / 2;
@@ -989,19 +996,44 @@
         options: {
           responsive: true,
           maintainAspectRatio: false,
-          layout: { padding: { top: 70, bottom: 75, left: 120, right: 120 } },
+          layout: { padding: { top: 70, bottom: 45, left: 120, right: 120 } },
           animation: { animateRotate: true, duration: 800, easing: 'easeInOutQuart' },
           onHover(event, elements, chart) {
             const idx = elements.length > 0 ? elements[0].index : -1;
             if (idx === prevHoveredIdx) return;
             prevHoveredIdx = idx;
             chart.data.datasets[0].backgroundColor = active.map((d, i) =>
-              idx < 0 ? d.chain.color + 'CC' : i === idx ? d.chain.color + 'F0' : d.chain.color + '35'
+              !chart.getDataVisibility(i) ? d.chain.color + '20'
+              : idx < 0 ? d.chain.color + 'CC'
+              : i === idx ? d.chain.color + 'F0' : d.chain.color + '35'
             );
             chart.update('none');
           },
+          onClick(event, elements, chart) {
+            if (!elements.length) return;
+            const i = elements[0].index;
+            chart.toggleDataVisibility(i);
+            prevHoveredIdx = -1;
+            chart.data.datasets[0].backgroundColor = active.map((d, j) =>
+              chart.getDataVisibility(j) ? d.chain.color + 'CC' : d.chain.color + '20'
+            );
+            chart.update();
+          },
           plugins: {
-            legend: { display: false },
+            legend: {
+              display: true, position: 'bottom',
+              labels: { color: cv('--text-sec'), usePointStyle: true, pointStyle: 'circle', boxWidth: 8, padding: 14, font: { size: 11 } },
+              onClick(e, legendItem, legend) {
+                const i = legendItem.index;
+                const chart = legend.chart;
+                chart.toggleDataVisibility(i);
+                prevHoveredIdx = -1;
+                chart.data.datasets[0].backgroundColor = active.map((d, j) =>
+                  chart.getDataVisibility(j) ? d.chain.color + 'CC' : d.chain.color + '20'
+                );
+                chart.update();
+              },
+            },
             tooltip: {
               backgroundColor: cv('--chart-bg'), borderColor: cv('--border-hi'), borderWidth: 1,
               padding: 12, displayColors: false,
