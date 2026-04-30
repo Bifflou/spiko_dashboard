@@ -44,6 +44,28 @@ def iso_to_date(iso):
 SCV_I128   = 10
 SCV_U128   = 9
 SCV_SYMBOL = 15
+SCV_ADDRESS = 16
+SC_ADDR_ACCOUNT  = 0
+SC_ADDR_CONTRACT = 1
+
+
+def _crc16_xmodem(data: bytes) -> int:
+    crc = 0
+    for byte in data:
+        crc ^= byte << 8
+        for _ in range(8):
+            crc = ((crc << 1) ^ 0x1021) if crc & 0x8000 else (crc << 1)
+        crc &= 0xFFFF
+    return crc
+
+
+def _strkey(version_byte: int, payload: bytes) -> str:
+    """Encode raw bytes to a Stellar StrKey string (base32, no padding)."""
+    data = bytes([version_byte]) + payload
+    crc  = _crc16_xmodem(data)
+    full = data + struct.pack('<H', crc)
+    return base64.b32encode(full).decode('ascii').rstrip('=')
+
 
 def decode_scval(b64):
     """
@@ -69,6 +91,16 @@ def decode_scval(b64):
             hi = struct.unpack('>Q', raw[4:12])[0]
             lo = struct.unpack('>Q', raw[12:20])[0]
             return 'u128', (hi << 64) | lo
+
+        elif discriminant == SCV_ADDRESS:
+            addr_type = struct.unpack('>I', raw[4:8])[0]
+            if addr_type == SC_ADDR_ACCOUNT and len(raw) >= 44:
+                # ScVal(4) + SCAddress.type(4) + PublicKey.type(4) + ed25519(32)
+                pubkey = raw[12:44]
+                return 'address', _strkey(6 << 3, pubkey)   # G... account
+            elif addr_type == SC_ADDR_CONTRACT and len(raw) >= 40:
+                # ScVal(4) + SCAddress.type(4) + hash(32)
+                return 'address', _strkey(2 << 3, raw[8:40])  # C... contract
 
     except Exception:
         pass
@@ -113,55 +145,6 @@ def get_circulating_supply_and_holders():
 
     return round(total_supply, 7), holder_addresses
 
-
-def get_holder_first_seen(address):
-    """
-    Find the date when an address first received EURCV on Stellar.
-    Scans account operations on Horizon (ascending) for the earliest
-    payment or invoke_host_function involving the EURCV asset/contract.
-    """
-    url = f"{HORIZON}/accounts/{address}/operations"
-    params = {"order": "asc", "limit": 200, "include_failed": "false"}
-    use_params = True
-
-    while True:
-        try:
-            resp = requests.get(url, params=(params if use_params else None), timeout=30)
-            if resp.status_code == 404:
-                return None
-            resp.raise_for_status()
-        except Exception:
-            return None
-
-        data = resp.json()
-        records = data.get("_embedded", {}).get("records", [])
-
-        for op in records:
-            op_type = op.get("type", "")
-            date = iso_to_date(op.get("created_at", "") or "")
-            if not date:
-                continue
-
-            if op_type == "payment":
-                if (op.get("asset_code") == ASSET_CODE
-                        and op.get("asset_issuer") == ISSUER
-                        and op.get("to") == address):
-                    return date
-
-            elif op_type == "invoke_host_function":
-                if op.get("function", "").endswith("InvokeContract"):
-                    params_list = op.get("parameters", [])
-                    params_str = json.dumps(params_list)
-                    # Match ops involving our contract or issuer
-                    if CONTRACT in params_str or ISSUER in params_str:
-                        return date
-
-        next_href = data.get("_links", {}).get("next", {}).get("href")
-        if not next_href or not records:
-            break
-        url = next_href
-        use_params = False
-        time.sleep(0.2)
 
     return None
 
@@ -265,6 +248,14 @@ def process_operations(ops):
 
             if fn_name in ("mint", "mint_to_account"):
                 delta_by_date[date] += amount
+                # Extract recipient: mint(to, amount) → params[2]
+                #                    mint_to_account(from, to, amount) → params[3]
+                recipient_idx = 3 if fn_name == "mint_to_account" else 2
+                if len(params) > recipient_idx:
+                    _, recipient = decode_scval(params[recipient_idx].get("value", ""))
+                    if recipient and recipient not in EXCLUDED_ADDRS and recipient not in holder_first_seen:
+                        holder_first_seen[recipient] = date
+                        print(f"  → nouveau holder {recipient[:12]}… le {date}")
             else:
                 delta_by_date[date] -= amount
 
@@ -468,24 +459,14 @@ def main():
             "holder_first_seen": holder_first_seen,
         }
 
-    # ── Resolve first-seen date for any current holder not yet in the cache ───
-    # Stellar distributes via Soroban (invoke_host_function), so process_operations()
-    # misses recipients — we look them up directly on Horizon here.
+    # ── Fallback: current holders not found via ops (e.g. P2P transfers) ─────
     holder_first_seen_ref = new_state["holder_first_seen"]
     new_addrs = [a for a in holder_addresses if a not in holder_first_seen_ref]
     if new_addrs:
-        print(f"Datation de {len(new_addrs)} holders non encore vus...")
-        for i, addr in enumerate(new_addrs):
-            date = get_holder_first_seen(addr)
-            if date:
-                holder_first_seen_ref[addr] = date
-                print(f"  [{i+1}/{len(new_addrs)}] {addr[:12]}… → {date}")
-            else:
-                print(f"  [{i+1}/{len(new_addrs)}] {addr[:12]}… → non trouvé, utilise today")
-                holder_first_seen_ref[addr] = today
-            time.sleep(0.3)
-
-        # Rebuild full holders history from updated cache
+        print(f"  {len(new_addrs)} holder(s) non trouvés dans les ops, daté(s) à today :")
+        for addr in new_addrs:
+            print(f"    {addr}")
+            holder_first_seen_ref[addr] = today
         merged_holders = build_holders_history_from_map(holder_first_seen_ref)
         new_state["holder_first_seen"] = holder_first_seen_ref
 
