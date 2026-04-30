@@ -210,9 +210,12 @@
       white-space: nowrap;
       background: var(--bg-deep);
       user-select: none;
+      text-align: right;
     }
 
-    .tracker-table thead th.th-right { text-align: right; }
+    /* Token name column stays left-aligned */
+    .tracker-table thead th.th-name,
+    .tracker-table .td-name { text-align: left; }
 
     .tracker-table thead th.th-sortable {
       cursor: pointer;
@@ -235,6 +238,7 @@
       padding: 0.85rem 1.1rem;
       font-size: 0.85rem;
       vertical-align: middle;
+      text-align: right;
     }
 
     .td-rank { color: var(--text-mute); font-size: 0.75rem; width: 40px; }
@@ -280,7 +284,6 @@
 
     .td-mcap {
       width: 130px;
-      text-align: right;
       font-weight: 600;
       color: var(--text);
       font-variant-numeric: tabular-nums;
@@ -288,7 +291,6 @@
 
     .td-holders {
       width: 110px;
-      text-align: right;
       font-weight: 500;
       color: var(--text);
       font-variant-numeric: tabular-nums;
@@ -304,7 +306,6 @@
 
     .td-arrow {
       width: 44px;
-      text-align: center;
       color: var(--text-mute);
     }
 
@@ -346,7 +347,6 @@
     /* ── Change % cells ─────────────────────────────────────────────────── */
     .td-change {
       width: 72px;
-      text-align: right;
       font-size: 0.78rem;
       font-weight: 600;
       font-variant-numeric: tabular-nums;
@@ -574,7 +574,7 @@
         <thead>
           <tr>
             <th style="width:40px">#</th>
-            <th class="th-sortable" data-sort="name">Token <span class="sort-icon" id="si-name">↕</span></th>
+            <th class="th-sortable th-name" data-sort="name">Token <span class="sort-icon" id="si-name">↕</span></th>
             <th class="col-ticker" style="width:80px">Ticker</th>
             <th class="col-chains" style="width:140px">Chaînes</th>
             <th class="th-sortable th-right col-mcap" data-sort="mcap" style="width:130px">Market Cap <span class="sort-icon" id="si-mcap">↓</span></th>
