@@ -874,7 +874,7 @@
     }
 
     // ── HTML pill legend (shared by line & pie charts) ─────────────────────────
-    function buildPillLegend(canvasId, items, getHidden, onToggle) {
+    function buildPillLegend(canvasId, chartId, items, getHidden, onToggle) {
       const canvas = document.getElementById(canvasId);
       if (!canvas) return () => {};
       const chartWrap = canvas.parentElement;
@@ -894,6 +894,9 @@
         btn.innerHTML = `<span class="legend-pill-dot" style="background:${item.color}"></span>${item.label}`;
         btn.addEventListener('click', () => {
           onToggle(i);
+          // Persist the full state for this chart
+          if (!hiddenStates[chartId]) hiddenStates[chartId] = {};
+          items.forEach((it, j) => { hiddenStates[chartId][it.label] = getHidden(j); });
           refresh();
         });
         wrap.appendChild(btn);
@@ -911,12 +914,15 @@
     function buildLineChart(canvasId, stackedData, fmtVal, fmtAxis, rates) {
       const { labels, rawDates, paired, filled } = stackedData;
       const ctx = document.getElementById(canvasId).getContext('2d');
+      const chartId = canvasId.replace(/^chart-/, '');
+      const saved   = hiddenStates[chartId] || {};
 
       const datasets = [...paired].reverse().map((p, revIdx) => {
         const origIdx = paired.length - 1 - revIdx;
         return {
           label: p.chain.label,
           data: filled[origIdx],
+          hidden: saved[p.chain.label] || false,   // restore persisted state
           borderColor: p.chain.color,
           backgroundColor: p.chain.color + 'B3',
           borderWidth: 1.5,
@@ -954,6 +960,7 @@
       const pairedRev = [...paired].reverse();
       buildPillLegend(
         canvasId,
+        chartId,
         pairedRev.map(p => ({ color: p.chain.color, label: p.chain.label })),
         i => !lineChart.isDatasetVisible(i),
         i => { lineChart.isDatasetVisible(i) ? lineChart.hide(i) : lineChart.show(i); }
@@ -974,10 +981,12 @@
     }
 
     function buildPieChart(canvasId, seriesArr, chains, valueKey, fmtVal) {
-      const ctx = document.getElementById(canvasId).getContext('2d');
-      const values = getLatestValues(seriesArr, valueKey);
+      const ctx     = document.getElementById(canvasId).getContext('2d');
+      const chartId = canvasId.replace(/^chart-/, '');
+      const saved   = hiddenStates[chartId] || {};
+      const values  = getLatestValues(seriesArr, valueKey);
       const active  = chains.map((chain, i) => ({ chain, value: values[i] })).filter(d => d.value > 0);
-      const baseBg  = active.map(d => d.chain.color + 'CC');
+      const baseBg  = active.map((d, i) => (saved[d.chain.label] ? d.chain.color + '20' : d.chain.color + 'CC'));
 
       const outerLabelsPlugin = {
         id: 'outerLabels_' + canvasId,
@@ -1098,6 +1107,9 @@
               chart.getDataVisibility(j) ? d.chain.color + 'CC' : d.chain.color + '20'
             );
             chart.update();
+            // Persist state
+            if (!hiddenStates[chartId]) hiddenStates[chartId] = {};
+            active.forEach((d, j) => { hiddenStates[chartId][d.chain.label] = !chart.getDataVisibility(j); });
             refreshPills();
           },
           plugins: {
@@ -1114,8 +1126,15 @@
         plugins: [outerLabelsPlugin],
       });
 
+      // Restore persisted hidden state (must happen after chart creation)
+      active.forEach((d, i) => {
+        if (saved[d.chain.label]) pieChart.toggleDataVisibility(i);
+      });
+      if (Object.keys(saved).length) pieChart.update('none');
+
       refreshPills = buildPillLegend(
         canvasId,
+        chartId,
         active.map(d => ({ color: d.chain.color, label: d.chain.label })),
         i => !pieChart.getDataVisibility(i),
         i => {
@@ -1442,6 +1461,9 @@
 
     // ── State ───────────────────────────────────────────────────────────────────
     let currentCurrency = 'USD';
+    // Persistent hidden-series state: { [chartId]: { [seriesLabel]: boolean } }
+    // chartId = canvasId without the "chart-" prefix (e.g. "eurcv-mcap", "global-mcap-token")
+    const hiddenStates = {};
     let eurusdRates     = {};
 
     const state = {
