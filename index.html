@@ -343,9 +343,25 @@
       padding: 1.25rem 1.5rem;
     }
 
+    /* ── Change % cells ─────────────────────────────────────────────────── */
+    .td-change {
+      width: 72px;
+      text-align: right;
+      font-size: 0.78rem;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+    .chg-pos  { color: var(--green); }
+    .chg-neg  { color: var(--red-neg); }
+    .chg-zero { color: var(--text-mute); }
+
     /* ── Responsive hide cols ────────────────────────────────────────────── */
+    @media (max-width: 900px) {
+      .col-1m { display: none; }
+    }
     @media (max-width: 700px) {
-      .col-ticker, .col-chains { display: none; }
+      .col-ticker, .col-chains, .col-7d { display: none; }
     }
 
     /* ── Cards ───────────────────────────────────────────────────────────── */
@@ -562,6 +578,9 @@
             <th class="col-ticker" style="width:80px">Ticker</th>
             <th class="col-chains" style="width:140px">Chaînes</th>
             <th class="th-sortable th-right col-mcap" data-sort="mcap" style="width:130px">Market Cap <span class="sort-icon" id="si-mcap">↓</span></th>
+            <th class="th-right col-1d" style="width:72px">1J</th>
+            <th class="th-right col-7d" style="width:72px">7J</th>
+            <th class="th-right col-1m" style="width:72px">1M</th>
             <th class="th-sortable th-right col-holders" data-sort="holders" style="width:110px">Holders <span class="sort-icon" id="si-holders">↕</span></th>
             <th style="width:44px"></th>
           </tr>
@@ -1281,15 +1300,64 @@
       },
     ];
 
+    // ── Change % helpers ────────────────────────────────────────────────────────
+    function isoSubDays(isoDate, days) {
+      const d = new Date(isoDate + 'T00:00:00Z');
+      d.setUTCDate(d.getUTCDate() - days);
+      return d.toISOString().slice(0, 10);
+    }
+
+    // Returns the last known value on or before targetDate in a [{date,value}] series
+    function valueAtDate(series, targetDate) {
+      let last = null;
+      for (const pt of series) {
+        if (pt.date > targetDate) break;
+        if (pt.value != null) last = pt.value;
+      }
+      return last;
+    }
+
+    // Merge all chains for a token into a single daily [{date,value}] total series
+    function totalMcapSeries(tokenId, mcKey) {
+      return mergeSeries(state[tokenId].mcapData.map(s => ({ series: s, key: mcKey })));
+    }
+
+    function pctChange(current, prev) {
+      if (prev == null || prev === 0) return null;
+      return (current - prev) / prev * 100;
+    }
+
+    function fmtChg(pct) {
+      if (pct === null) return { html: '<span class="chg-zero">—</span>' };
+      const cls  = pct > 0 ? 'chg-pos' : pct < 0 ? 'chg-neg' : 'chg-zero';
+      const sign = pct > 0 ? '+' : '';
+      return { html: `<span class="${cls}">${sign}${pct.toFixed(2)}%</span>` };
+    }
+
     function getTokenRows() {
       const isUSD      = currentCurrency === 'USD';
       const eurcvMcKey = isUSD ? 'marketcap' : 'supply';
       const usdcvMcKey = isUSD ? 'supply'    : 'supply_eur';
       return TOKEN_DEFS.map(def => {
-        const mcKey = def.id === 'eurcv' ? eurcvMcKey : usdcvMcKey;
+        const mcKey   = def.id === 'eurcv' ? eurcvMcKey : usdcvMcKey;
         const mcap    = state[def.id].mcapData.reduce((s, series) => s + getLatestValue(series, mcKey), 0);
         const holders = state[def.id].holdersData.reduce((s, series) => s + getLatestValue(series, 'holders'), 0);
-        return { ...def, mcap, holders };
+
+        // Build merged total-mcap series for this token (forward-filled daily)
+        const merged = totalMcapSeries(def.id, mcKey);
+        if (!merged.length) return { ...def, mcap, holders, chg1d: null, chg7d: null, chg1m: null };
+
+        const latestDate = merged[merged.length - 1].date;
+        const v1d  = valueAtDate(merged, isoSubDays(latestDate, 1));
+        const v7d  = valueAtDate(merged, isoSubDays(latestDate, 7));
+        const v1m  = valueAtDate(merged, isoSubDays(latestDate, 30));
+
+        return {
+          ...def, mcap, holders,
+          chg1d: pctChange(mcap, v1d),
+          chg7d: pctChange(mcap, v7d),
+          chg1m: pctChange(mcap, v1m),
+        };
       });
     }
 
@@ -1304,7 +1372,7 @@
     }
 
     function updateSortIcons() {
-      const icons = { name: 'si-name', mcap: 'si-mcap', holders: 'si-holders' };
+      const icons = { name: 'si-name', mcap: 'si-mcap', holders: 'si-holders', chg1d: 'si-1d', chg7d: 'si-7d', chg1m: 'si-1m' };
       const ths = document.querySelectorAll('.tracker-table .th-sortable');
       ths.forEach(th => th.classList.remove('sort-active'));
       Object.entries(icons).forEach(([key, id]) => {
@@ -1384,6 +1452,9 @@
           <td class="td-ticker col-ticker">${token.ticker}</td>
           <td class="td-chains col-chains">${chainLogosHtml}</td>
           <td class="td-mcap col-mcap">${fmtKpiMcap(token.mcap, mcapSym)}</td>
+          <td class="td-change col-1d">${fmtChg(token.chg1d).html}</td>
+          <td class="td-change col-7d">${fmtChg(token.chg7d).html}</td>
+          <td class="td-change col-1m">${fmtChg(token.chg1m).html}</td>
           <td class="td-holders col-holders" title="* Comptage non dédupliqué cross-chaîne">${fmtSpaced(token.holders)}<span class="holders-star">*</span></td>
           <td class="td-arrow"><span class="row-arrow${isOpen ? ' open' : ''}">›</span></td>
         `;
@@ -1395,7 +1466,7 @@
         trExp.className = 'tracker-expand-row';
         trExp.dataset.token = token.id;
         const td = document.createElement('td');
-        td.colSpan = 7;
+        td.colSpan = 10;
         const expandBody = document.createElement('div');
         expandBody.className = 'expand-body';
         expandBody.id = 'expand-' + token.id;
