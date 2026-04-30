@@ -293,6 +293,22 @@
       width: 80px;
     }
 
+    .peg-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      padding: 2px 8px;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      background: var(--bg-deep);
+      color: var(--text-mute);
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
     .td-chains { width: 140px; }
 
     .chain-logos {
@@ -1574,6 +1590,7 @@
     const TOKEN_DEFS = [
       {
         id: 'eurcv', name: 'EUR CoinVertible', ticker: 'EURCV',
+        peg: { symbol: '€', code: 'EUR' },
         logo: './img/eurcv.png',
         chainDefs: EURCV_CHAINS,
         chainLogos: [
@@ -1585,6 +1602,7 @@
       },
       {
         id: 'usdcv', name: 'USD CoinVertible', ticker: 'USDCV',
+        peg: { symbol: '$', code: 'USD' },
         logo: './img/usdcv.png',
         chainDefs: USDCV_CHAINS,
         chainLogos: [
@@ -1742,6 +1760,7 @@
           <td class="td-name">
             <img src="${token.logo}" class="token-logo" alt="${token.ticker}" onerror="this.style.display='none'">
             ${token.name}
+            ${token.peg ? `<span class="peg-badge">${token.peg.symbol} ${token.peg.code}</span>` : ''}
           </td>
           <td class="td-ticker col-ticker">${token.ticker}</td>
           <td class="td-chains col-chains">${chainLogosHtml}</td>
