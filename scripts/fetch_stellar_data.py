@@ -82,9 +82,9 @@ def get_asset_info():
 
 
 def get_circulating_supply_and_holders():
-    """stellar.expert /holders — sum of non-zero balances = supply, count = holders."""
+    """stellar.expert /holders — returns (supply, holder_addresses list)."""
     total_supply = 0.0
-    holder_count = 0
+    holder_addresses = []
     url = f"{EXPERT}/holders"
 
     while True:
@@ -97,7 +97,9 @@ def get_circulating_supply_and_holders():
             bal = float(r.get("balance", 0)) / STELLAR_SCALE
             if bal > 0:
                 total_supply += bal
-                holder_count += 1
+                addr = r.get("account", "")
+                if addr:
+                    holder_addresses.append(addr)
 
         next_href = data.get("_links", {}).get("next", {}).get("href")
         if not next_href or not records:
@@ -107,7 +109,59 @@ def get_circulating_supply_and_holders():
         url = next_href
         time.sleep(0.1)
 
-    return round(total_supply, 7), holder_count
+    return round(total_supply, 7), holder_addresses
+
+
+def get_holder_first_seen(address):
+    """
+    Find the date when an address first received EURCV on Stellar.
+    Scans account operations on Horizon (ascending) for the earliest
+    payment or invoke_host_function involving the EURCV asset/contract.
+    """
+    url = f"{HORIZON}/accounts/{address}/operations"
+    params = {"order": "asc", "limit": 200, "include_failed": "false"}
+    use_params = True
+
+    while True:
+        try:
+            resp = requests.get(url, params=(params if use_params else None), timeout=30)
+            if resp.status_code == 404:
+                return None
+            resp.raise_for_status()
+        except Exception:
+            return None
+
+        data = resp.json()
+        records = data.get("_embedded", {}).get("records", [])
+
+        for op in records:
+            op_type = op.get("type", "")
+            date = iso_to_date(op.get("created_at", "") or "")
+            if not date:
+                continue
+
+            if op_type == "payment":
+                if (op.get("asset_code") == ASSET_CODE
+                        and op.get("asset_issuer") == ISSUER
+                        and op.get("to") == address):
+                    return date
+
+            elif op_type == "invoke_host_function":
+                if op.get("function", "").endswith("InvokeContract"):
+                    params_list = op.get("parameters", [])
+                    params_str = json.dumps(params_list)
+                    # Match ops involving our contract or issuer
+                    if CONTRACT in params_str or ISSUER in params_str:
+                        return date
+
+        next_href = data.get("_links", {}).get("next", {}).get("href")
+        if not next_href or not records:
+            break
+        url = next_href
+        use_params = False
+        time.sleep(0.2)
+
+    return None
 
 
 # ── Historical operations (Horizon) ────────────────────────────────────────────
@@ -285,9 +339,10 @@ def main():
     print(f"  Asset créé le : {created_date}")
 
     print("Récupération supply + holders via stellar.expert /holders...")
-    current_supply, current_holders = get_circulating_supply_and_holders()
+    current_supply, holder_addresses = get_circulating_supply_and_holders()
+    current_holders = len(holder_addresses)
     print(f"  Circulating supply : {current_supply:,.2f} EURCV")
-    print(f"  Holders actifs     : {current_holders}")
+    print(f"  Holders actifs     : {current_holders} — {holder_addresses}")
 
     state = load_json(STATE_FILE, default={})
     existing_marketcap = load_json("data/stellar_marketcap.json", default=[])
@@ -408,6 +463,27 @@ def main():
             "supply_cumulative": new_cumulative,
             "holder_first_seen": holder_first_seen,
         }
+
+    # ── Resolve first-seen date for any current holder not yet in the cache ───
+    # Stellar distributes via Soroban (invoke_host_function), so process_operations()
+    # misses recipients — we look them up directly on Horizon here.
+    holder_first_seen_ref = new_state["holder_first_seen"]
+    new_addrs = [a for a in holder_addresses if a not in holder_first_seen_ref]
+    if new_addrs:
+        print(f"Datation de {len(new_addrs)} holders non encore vus...")
+        for i, addr in enumerate(new_addrs):
+            date = get_holder_first_seen(addr)
+            if date:
+                holder_first_seen_ref[addr] = date
+                print(f"  [{i+1}/{len(new_addrs)}] {addr[:12]}… → {date}")
+            else:
+                print(f"  [{i+1}/{len(new_addrs)}] {addr[:12]}… → non trouvé, utilise today")
+                holder_first_seen_ref[addr] = today
+            time.sleep(0.3)
+
+        # Rebuild full holders history from updated cache
+        merged_holders = build_holders_history_from_map(holder_first_seen_ref)
+        new_state["holder_first_seen"] = holder_first_seen_ref
 
     # ── Override today with authoritative current_supply from stellar.expert ───
     if merged_raw_supply and merged_raw_supply[-1]["date"] == today:
