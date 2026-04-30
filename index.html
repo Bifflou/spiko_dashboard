@@ -986,7 +986,7 @@
       const saved   = hiddenStates[chartId] || {};
       const values  = getLatestValues(seriesArr, valueKey);
       const active  = chains.map((chain, i) => ({ chain, value: values[i] })).filter(d => d.value > 0);
-      const baseBg  = active.map((d, i) => (saved[d.chain.label] ? d.chain.color + '20' : d.chain.color + 'CC'));
+      const baseBg  = active.map(d => d.chain.color + 'CC');  // visibility handled by toggleDataVisibility, not opacity
 
       const outerLabelsPlugin = {
         id: 'outerLabels_' + canvasId,
@@ -1390,6 +1390,24 @@
     function rebuildGlobalChart(id) {
       const d = globalData[id];
       const canvasId = 'chart-global-' + id;
+
+      // ── Smooth in-place update (currency switch on an existing line chart) ──
+      if (isSmoothing && d.chart && d.mode === 'line') {
+        const stacked = buildStacked(d.chains, d.seriesArr, 'value');
+        // datasets are stored in reversed-paired order: dataset[i] = paired[n-1-i]
+        stacked.filled.forEach((fillData, pi) => {
+          const di = stacked.paired.length - 1 - pi;
+          if (d.chart.data.datasets[di]) d.chart.data.datasets[di].data = fillData;
+        });
+        d.chart.data.labels = stacked.labels;
+        d.chart.options.scales.y.ticks.callback = d.fmtAxis;
+        d.chart.options.plugins.tooltip.external = makeTooltipHandler(
+          d.fmtVal, stacked.paired, d.useRates ? eurusdRates : null, stacked.rawDates
+        );
+        d.chart.update();
+        return;
+      }
+
       if (d.chart) { d.chart.destroy(); d.chart = null; }
       const wrap = document.getElementById(canvasId).parentElement;
       wrap.innerHTML = `<canvas id="${canvasId}"></canvas>`;
@@ -1461,6 +1479,7 @@
 
     // ── State ───────────────────────────────────────────────────────────────────
     let currentCurrency = 'USD';
+    let isSmoothing     = false;   // true during setCurrency → enables in-place chart data update
     // Persistent hidden-series state: { [chartId]: { [seriesLabel]: boolean } }
     // chartId = canvasId without the "chart-" prefix (e.g. "eurcv-mcap", "global-mcap-token")
     const hiddenStates = {};
@@ -1807,8 +1826,10 @@
       document.getElementById('btn-usd').classList.toggle('active', currency === 'USD');
       document.getElementById('btn-eur').classList.toggle('active', currency === 'EUR');
       buildKpiCards();
-      buildGlobalCharts();
-      buildTrackerTable(); // rebuilds table values + refreshes open accordion charts
+      isSmoothing = true;
+      buildGlobalCharts();   // line charts update data in place → smooth animation
+      isSmoothing = false;
+      buildTrackerTable();   // table values + open accordion charts (full rebuild)
     }
 
     // ── Init ────────────────────────────────────────────────────────────────────
