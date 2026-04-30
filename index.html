@@ -8,23 +8,54 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <script>
+    // Apply saved theme immediately to avoid flash of wrong theme
+    (function() {
+      const t = localStorage.getItem('theme') || 'dark';
+      document.documentElement.setAttribute('data-theme', t);
+    })();
+  </script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+    html { transition: background 0.25s, color 0.25s; }
+
     :root {
+      /* ── Layout ── */
       --bg:        #05091A;
       --bg-card:   #09112B;
       --bg-deep:   #060C20;
       --border:    #182044;
       --border-hi: #243060;
+      /* ── Brand ── */
       --red:       #E2001A;
       --red-dim:   rgba(226,0,26,0.12);
       --red-dim2:  rgba(226,0,26,0.22);
+      /* ── Text ── */
       --text:      #EEF0FF;
       --text-sec:  #A8B8D8;
       --text-mute: #7888B0;
+      /* ── Status ── */
       --green:     #2EA87A;
       --red-neg:   #E2001A;
+      /* ── Chart-specific ── */
+      --chart-bg:    #0C1330;
+      --pie-border:  #161b22;
+      --row-hover:   rgba(255,255,255,0.03);
+    }
+
+    [data-theme="light"] {
+      --bg:        #EFF2FA;
+      --bg-card:   #FFFFFF;
+      --bg-deep:   #E4E9F6;
+      --border:    #CDD5EC;
+      --border-hi: #A8BAD8;
+      --text:      #080C22;
+      --text-sec:  #344070;
+      --text-mute: #6878A8;
+      --chart-bg:    #FFFFFF;
+      --pie-border:  #EFF2FA;
+      --row-hover:   rgba(0,0,0,0.04);
     }
 
     body {
@@ -60,7 +91,7 @@
     header h1 {
       font-size: 1rem;
       font-weight: 700;
-      color: #FFFFFF;
+      color: var(--text);
       letter-spacing: -0.01em;
     }
 
@@ -145,7 +176,7 @@
     .kpi-main {
       font-size: 1.7rem;
       font-weight: 800;
-      color: #FFFFFF;
+      color: var(--text);
       line-height: 1.1;
       letter-spacing: -0.02em;
     }
@@ -227,7 +258,7 @@
       border-bottom: 1px solid var(--border);
       transition: background 0.15s;
     }
-    .tracker-row:hover { background: rgba(255,255,255,0.03); }
+    .tracker-row:hover { background: var(--row-hover); }
     .tracker-row.is-open { background: rgba(226,0,26,0.04); }
 
     .tracker-row td {
@@ -502,10 +533,28 @@
 
     .toggle-btn svg { display: block; }
 
+    /* ── Theme toggle ────────────────────────────────────────────────────── */
+    .theme-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--bg-deep);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text-sec);
+      cursor: pointer;
+      width: 32px;
+      height: 32px;
+      font-size: 1rem;
+      transition: background 0.15s, border-color 0.15s, color 0.15s;
+      flex-shrink: 0;
+    }
+    .theme-btn:hover { border-color: var(--border-hi); color: var(--text); }
+
     /* ── External tooltip ────────────────────────────────────────────────── */
     .chart-tooltip {
       position: absolute;
-      background: #0D1535;
+      background: var(--chart-bg);
       border: 1px solid var(--border-hi);
       border-radius: 8px;
       padding: 10px 14px;
@@ -529,7 +578,7 @@
     }
 
     .tt-date  { color: var(--text-sec); font-size: 0.75rem; font-weight: 500; }
-    .tt-total { color: #FFFFFF; font-weight: 700; font-size: 0.88rem; white-space: nowrap; }
+    .tt-total { color: var(--text); font-weight: 700; font-size: 0.88rem; white-space: nowrap; }
 
     .tt-row {
       display: flex;
@@ -549,9 +598,12 @@
     <div class="header-accent"></div>
     <h1>CoinVertible Dashboard</h1>
     <span class="header-badge">SG Forge</span>
-<div class="toggle-wrap" style="margin-left:auto; flex-shrink:0;">
-      <button class="toggle-btn active" id="btn-usd" onclick="setCurrency('USD')">USD</button>
-      <button class="toggle-btn"        id="btn-eur" onclick="setCurrency('EUR')">EUR</button>
+    <div style="display:flex; align-items:center; gap:8px; margin-left:auto; flex-shrink:0;">
+      <button class="theme-btn" id="theme-toggle" onclick="toggleTheme()" title="Changer de thème">🌙</button>
+      <div class="toggle-wrap">
+        <button class="toggle-btn active" id="btn-usd" onclick="setCurrency('USD')">USD</button>
+        <button class="toggle-btn"        id="btn-eur" onclick="setCurrency('EUR')">EUR</button>
+      </div>
     </div>
   </header>
 
@@ -700,6 +752,11 @@
       return `${d}/${m}/${String(y).slice(2)}`;
     }
 
+    // ── Theme helpers ───────────────────────────────────────────────────────────
+    function cv(name) {
+      return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    }
+
     // ── Stacked area helpers ────────────────────────────────────────────────────
     function buildStacked(chains, seriesArr, valueKey) {
       const paired = chains.map((chain, i) => ({
@@ -805,11 +862,13 @@
           pointRadius: 0,
           pointHoverRadius: 4,
           pointHoverBackgroundColor: p.chain.color,
-          pointHoverBorderColor: '#1c2128',
+          pointHoverBorderColor: cv('--bg-card'),
           pointHoverBorderWidth: 2,
         };
       });
 
+      const textSec = cv('--text-sec');
+      const gridCol = cv('--border');
       return new Chart(ctx, {
         type: 'line',
         data: { labels, datasets },
@@ -820,13 +879,13 @@
           plugins: {
             legend: {
               display: true, position: 'top', align: 'end',
-              labels: { color: '#A8B8D8', usePointStyle: true, pointStyle: 'circle', boxWidth: 8, padding: 16, font: { size: 12 } },
+              labels: { color: textSec, usePointStyle: true, pointStyle: 'circle', boxWidth: 8, padding: 16, font: { size: 12 } },
             },
             tooltip: { enabled: false, external: makeTooltipHandler(fmtVal, paired, rates, rawDates) },
           },
           scales: {
-            x: { ticks: { color: '#A8B8D8', maxTicksLimit: 8, maxRotation: 0 }, grid: { color: '#182044' } },
-            y: { stacked: true, beginAtZero: true, ticks: { color: '#A8B8D8', callback: fmtAxis }, grid: { color: '#182044' } },
+            x: { ticks: { color: textSec, maxTicksLimit: 8, maxRotation: 0 }, grid: { color: gridCol } },
+            y: { stacked: true, beginAtZero: true, ticks: { color: textSec, callback: fmtAxis }, grid: { color: gridCol } },
           },
         },
       });
@@ -911,13 +970,13 @@
             c.textAlign    = isRight ? 'left' : 'right';
             c.textBaseline = 'alphabetic';
             c.font = `12px ${FONT}`;
-            c.fillStyle = '#c9d1d9';
+            c.fillStyle = cv('--text-sec');
             c.fillText(label, tx, adjY - 3);
             c.font = `bold 13px ${FONT}`;
-            c.fillStyle = '#e6edf3';
+            c.fillStyle = cv('--text');
             c.fillText(fmtVal(value), tx, adjY + 12);
             c.font = `11px ${FONT}`;
-            c.fillStyle = '#A8B8D8';
+            c.fillStyle = cv('--text-mute');
             c.fillText(total > 0 ? (value / total * 100).toFixed(1) + '%' : '', tx, adjY + 26);
           });
 
@@ -934,10 +993,10 @@
           datasets: [{
             data: active.map(d => d.value),
             backgroundColor: [...baseBg],
-            borderColor: '#161b22',
+            borderColor: cv('--pie-border'),
             borderWidth: 2,
             hoverOffset: 12,
-            hoverBorderColor: '#161b22',
+            hoverBorderColor: cv('--pie-border'),
             hoverBorderWidth: 2,
           }],
         },
@@ -958,10 +1017,10 @@
           plugins: {
             legend: { display: false },
             tooltip: {
-              backgroundColor: '#1c2128', borderColor: '#30363d', borderWidth: 1,
+              backgroundColor: cv('--chart-bg'), borderColor: cv('--border-hi'), borderWidth: 1,
               padding: 12, displayColors: false,
-              titleColor: '#f0f6fc', titleFont: { weight: '700', size: 13 },
-              bodyColor: '#8b949e', bodyFont: { size: 12 },
+              titleColor: cv('--text'), titleFont: { weight: '700', size: 13 },
+              bodyColor: cv('--text-sec'), bodyFont: { size: 12 },
               callbacks: { title: ctx => ctx[0].label, label: ctx => '  ' + fmtVal(ctx.raw) },
             },
           },
@@ -1610,6 +1669,18 @@
       }
     }
 
+    function toggleTheme() {
+      const html = document.documentElement;
+      const isLight = html.getAttribute('data-theme') === 'light';
+      const next = isLight ? 'dark' : 'light';
+      html.setAttribute('data-theme', next);
+      localStorage.setItem('theme', next);
+      document.getElementById('theme-toggle').textContent = next === 'light' ? '🌙' : '☀️';
+      // Rebuild all charts with new colours
+      buildGlobalCharts();
+      buildTrackerTable();
+    }
+
     function setCurrency(currency) {
       if (currency === currentCurrency) return;
       currentCurrency = currency;
@@ -1640,6 +1711,10 @@
       state.eurcv.holdersData = eurcvHolders;
       state.usdcv.mcapData    = usdcvMcapRaw.map(s => applyUsdcvRates(s, eurusdRates));
       state.usdcv.holdersData = usdcvHolders;
+
+      // Sync theme icon with saved preference
+      const savedTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+      document.getElementById('theme-toggle').textContent = savedTheme === 'light' ? '🌙' : '☀️';
 
       buildKpiCards();
       buildGlobalCharts();
