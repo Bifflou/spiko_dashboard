@@ -10,6 +10,8 @@ from datetime import datetime, timezone, timedelta
 ISSUER        = "GCEYGIVOLAVBF2TG2RUSGTUJCIN75KEX3NGLMY4VPL4GFE5L355AXW3G"
 ADMIN         = "GCYYFR4SR4RDSWTN64LSE4BGF2UQEDYZ32QTD7TMQXO6TXSGEDWP652D"
 CONTRACT      = "CANKBYNNAYKEZXLB655F2UPNTAZFK5HILZUXL7ZTFR3NF6LKDSVY7KFH"
+# Operational wallets excluded from holder count
+EXCLUDED_ADDRS = {ISSUER, ADMIN}
 ASSET_CODE    = "EURCV"
 HORIZON       = "https://horizon.stellar.org"
 EXPERT_BASE   = "https://api.stellar.expert"
@@ -95,10 +97,10 @@ def get_circulating_supply_and_holders():
 
         for r in records:
             bal = float(r.get("balance", 0)) / STELLAR_SCALE
+            addr = r.get("account", "")
             if bal > 0:
                 total_supply += bal
-                addr = r.get("account", "")
-                if addr:
+                if addr and addr not in EXCLUDED_ADDRS:
                     holder_addresses.append(addr)
 
         next_href = data.get("_links", {}).get("next", {}).get("href")
@@ -378,11 +380,13 @@ def main():
         new_ops.sort(key=lambda o: o.get("created_at", ""))
         print(f"  Total nouvelles opérations (dédupliquées) : {len(new_ops)}")
 
-        if not new_ops:
-            print("Aucune nouvelle opération — fichiers inchangés.")
+        # Check for unresolved holders before deciding to exit early
+        unresolved = [a for a in holder_addresses if a not in saved_holder_first_seen]
+        if not new_ops and not unresolved:
+            print("Aucune nouvelle opération et aucun nouveau holder — fichiers inchangés.")
             return
 
-        delta_by_date, new_holder_first_seen = process_operations(new_ops)
+        delta_by_date, new_holder_first_seen = process_operations(new_ops) if new_ops else ({}, {})
 
         # Merge holder_first_seen (don't overwrite existing first-seen dates)
         merged_holder_first_seen = dict(saved_holder_first_seen)
