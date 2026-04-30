@@ -11,7 +11,7 @@ HELIUS_RPC = f"https://mainnet.helius-rpc.com/?api-key={HELIUS_API_KEY}"
 SPL_PROGRAMS = {"TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA", "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"}
 
 MAX_RETRIES = 8
-BATCH_SIZE  = 10   # transactions par batch JSON-RPC
+BATCH_SIZE  = 3    # transactions par batch JSON-RPC (Helius limite la taille du payload)
 
 
 def rpc(method, params):
@@ -145,7 +145,7 @@ def reconstruct_supply(signatures, decimals):
 
         done = min(batch_start + BATCH_SIZE, total)
         print(f"  {done}/{total} tx analysées, {found} mint/burn trouvés")
-        time.sleep(0.4)  # pause entre batches
+        time.sleep(0.6)  # pause entre batches
 
     supply_history = []
     cumulative = 0
