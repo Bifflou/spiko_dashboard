@@ -1065,7 +1065,13 @@
         },
       };
 
-      let prevHoveredIdx = -1;
+      // If there is saved hidden state, skip the initial rotate animation to avoid
+      // a flash where hidden slices briefly appear before toggleDataVisibility takes effect.
+      const hasHiddenState = active.some(d => saved[d.chain.label]);
+      const ANIM_CFG = { animateRotate: true, duration: 800, easing: 'easeInOutQuart' };
+
+      // Use null so the first onHover(idx=-1) always fires and syncs colours.
+      let prevHoveredIdx = null;
       let refreshPills = () => {};
 
       const pieChart = new Chart(ctx, {
@@ -1086,7 +1092,8 @@
           responsive: true,
           maintainAspectRatio: false,
           layout: { padding: { top: 70, bottom: 70, left: 120, right: 120 } },
-          animation: { animateRotate: true, duration: 800, easing: 'easeInOutQuart' },
+          // Skip initial animation when restoring hidden state to avoid flash
+          animation: hasHiddenState ? false : ANIM_CFG,
           onHover(event, elements, chart) {
             const idx = elements.length > 0 ? elements[0].index : -1;
             if (idx === prevHoveredIdx) return;
@@ -1126,11 +1133,17 @@
         plugins: [outerLabelsPlugin],
       });
 
-      // Restore persisted hidden state (must happen after chart creation)
-      active.forEach((d, i) => {
-        if (saved[d.chain.label]) pieChart.toggleDataVisibility(i);
-      });
-      if (Object.keys(saved).length) pieChart.update('none');
+      // Restore persisted hidden state
+      if (hasHiddenState) {
+        active.forEach((d, i) => { if (saved[d.chain.label]) pieChart.toggleDataVisibility(i); });
+        // Sync backgroundColor so hidden slices are already at 20% opacity
+        pieChart.data.datasets[0].backgroundColor = active.map((d, i) =>
+          pieChart.getDataVisibility(i) ? d.chain.color + 'CC' : d.chain.color + '20'
+        );
+        // Re-enable animation for future user interactions, then draw in correct state
+        pieChart.options.animation = ANIM_CFG;
+        pieChart.update('none');
+      }
 
       refreshPills = buildPillLegend(
         canvasId,
