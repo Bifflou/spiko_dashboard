@@ -10,15 +10,48 @@ MINT_ADDRESS = "8smindLdDuySY6i2bStQX9o8DVhALCXCMbNxD98unx35"
 HELIUS_RPC = f"https://mainnet.helius-rpc.com/?api-key={HELIUS_API_KEY}"
 SPL_PROGRAMS = {"TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA", "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"}
 
+MAX_RETRIES = 8
+BATCH_SIZE  = 10   # transactions par batch JSON-RPC
+
 
 def rpc(method, params):
+    """Appel JSON-RPC unique avec retry + backoff exponentiel sur 429."""
     payload = {"jsonrpc": "2.0", "id": 1, "method": method, "params": params}
-    resp = requests.post(HELIUS_RPC, json=payload, timeout=30)
-    resp.raise_for_status()
-    data = resp.json()
-    if "error" in data:
-        raise RuntimeError(f"RPC error: {data['error']}")
-    return data.get("result")
+    wait = 2.0
+    for attempt in range(MAX_RETRIES):
+        resp = requests.post(HELIUS_RPC, json=payload, timeout=30)
+        if resp.status_code == 429:
+            print(f"  [429] attente {wait:.0f}s (tentative {attempt + 1}/{MAX_RETRIES})...")
+            time.sleep(wait)
+            wait = min(wait * 2, 60)
+            continue
+        resp.raise_for_status()
+        data = resp.json()
+        if "error" in data:
+            raise RuntimeError(f"RPC error: {data['error']}")
+        return data.get("result")
+    raise RuntimeError(f"Échec après {MAX_RETRIES} tentatives pour {method}")
+
+
+def rpc_batch(requests_list):
+    """Envoie plusieurs requêtes JSON-RPC en un seul appel HTTP (batch)."""
+    payload = [
+        {"jsonrpc": "2.0", "id": i, "method": r["method"], "params": r["params"]}
+        for i, r in enumerate(requests_list)
+    ]
+    wait = 2.0
+    for attempt in range(MAX_RETRIES):
+        resp = requests.post(HELIUS_RPC, json=payload, timeout=60)
+        if resp.status_code == 429:
+            print(f"  [429 batch] attente {wait:.0f}s (tentative {attempt + 1}/{MAX_RETRIES})...")
+            time.sleep(wait)
+            wait = min(wait * 2, 60)
+            continue
+        resp.raise_for_status()
+        results = resp.json()
+        results.sort(key=lambda r: r.get("id", 0))
+        return [r.get("result") for r in results]
+    raise RuntimeError(f"Échec batch après {MAX_RETRIES} tentatives")
 
 
 def get_token_decimals():
@@ -87,38 +120,38 @@ def extract_mint_burn(parsed_tx):
 def reconstruct_supply(signatures, decimals):
     delta_by_date = defaultdict(int)
     found = 0
+    total = len(signatures)
 
-    for i, sig_info in enumerate(signatures):
-        sig = sig_info["signature"]
-        ts = sig_info.get("blockTime", 0)
-        date = datetime.fromtimestamp(ts, tz=timezone.utc).strftime("%Y-%m-%d") if ts else None
+    for batch_start in range(0, total, BATCH_SIZE):
+        batch = signatures[batch_start:batch_start + BATCH_SIZE]
 
-        parsed = rpc("getTransaction", [sig, {
-            "encoding": "jsonParsed",
-            "maxSupportedTransactionVersion": 0,
-        }])
+        reqs = [
+            {"method": "getTransaction", "params": [s["signature"], {
+                "encoding": "jsonParsed",
+                "maxSupportedTransactionVersion": 0,
+            }]}
+            for s in batch
+        ]
 
-        events = extract_mint_burn(parsed)
-        for ev in events:
-            if date:
-                if ev["type"] == "mint":
-                    delta_by_date[date] += ev["amount"]
-                else:
-                    delta_by_date[date] -= ev["amount"]
-                found += 1
+        results = rpc_batch(reqs)
 
-        if (i + 1) % 10 == 0:
-            print(f"  {i + 1}/{len(signatures)} tx analysées, {found} mint/burn trouvés")
+        for sig_info, parsed in zip(batch, results):
+            ts = sig_info.get("blockTime", 0)
+            date = datetime.fromtimestamp(ts, tz=timezone.utc).strftime("%Y-%m-%d") if ts else None
+            for ev in extract_mint_burn(parsed):
+                if date:
+                    delta_by_date[date] += ev["amount"] if ev["type"] == "mint" else -ev["amount"]
+                    found += 1
 
-        time.sleep(0.1)
+        done = min(batch_start + BATCH_SIZE, total)
+        print(f"  {done}/{total} tx analysées, {found} mint/burn trouvés")
+        time.sleep(0.4)  # pause entre batches
 
     supply_history = []
     cumulative = 0
-
     for date in sorted(delta_by_date.keys()):
         cumulative += delta_by_date[date]
-        supply_tokens = cumulative / (10 ** decimals)
-        supply_history.append({"date": date, "supply": round(supply_tokens, 2)})
+        supply_history.append({"date": date, "supply": round(cumulative / (10 ** decimals), 2)})
 
     return supply_history
 
@@ -191,10 +224,10 @@ def reconstruct_holders(token_accounts):
         if date:
             events_by_date[date] += 1
 
-        if (i + 1) % 5 == 0:
+        if (i + 1) % 10 == 0:
             print(f"  {i + 1}/{len(active)} comptes datés")
 
-        time.sleep(0.1)
+        time.sleep(0.3)
 
     holders_history = []
     cumulative = 0
