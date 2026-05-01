@@ -150,24 +150,39 @@ def process_supply(ops):
                 delta_by_date[date] -= amount
 
         elif op_type == "invoke_host_function":
-            if not op.get("function", "").endswith("InvokeContract"):
-                continue
-            params = op.get("parameters", [])
-            if len(params) < 3:
-                continue
-            _, fn_name = decode_scval(params[1].get("value", ""))
-            if fn_name not in ("mint", "mint_to_account", "burn", "clawback"):
-                continue
-            _, raw_amount = decode_scval(params[-1].get("value", ""))
-            if raw_amount is None:
-                print(f"  [warn] could not decode amount for {fn_name} on {date}")
-                continue
-            amount = raw_amount / STELLAR_SCALE
-            print(f"  Soroban {fn_name}: {amount:,.2f} EURCV on {date}")
-            if fn_name in ("mint", "mint_to_account"):
-                delta_by_date[date] += amount
+            # Prefer Horizon-decoded asset_balance_changes (no XDR needed)
+            changes = [
+                c for c in op.get("asset_balance_changes", [])
+                if c.get("asset_code") == ASSET_CODE and c.get("asset_issuer") == ISSUER
+            ]
+            if changes:
+                for change in changes:
+                    ctype  = change.get("type", "")
+                    amount = float(change.get("amount", 0))
+                    if ctype == "mint":
+                        delta_by_date[date] += amount
+                    elif ctype in ("burn", "clawback"):
+                        delta_by_date[date] -= amount
             else:
-                delta_by_date[date] -= amount
+                # Fallback: decode ScVal parameters manually
+                if not op.get("function", "").endswith("InvokeContract"):
+                    continue
+                params = op.get("parameters", [])
+                if len(params) < 3:
+                    continue
+                _, fn_name = decode_scval(params[1].get("value", ""))
+                if fn_name not in ("mint", "mint_to_account", "burn", "clawback"):
+                    continue
+                _, raw_amount = decode_scval(params[-1].get("value", ""))
+                if raw_amount is None:
+                    print(f"  [warn] could not decode amount for {fn_name} on {date}")
+                    continue
+                amount = raw_amount / STELLAR_SCALE
+                print(f"  Soroban {fn_name} (ScVal fallback): {amount:,.2f} EURCV on {date}")
+                if fn_name in ("mint", "mint_to_account"):
+                    delta_by_date[date] += amount
+                else:
+                    delta_by_date[date] -= amount
 
         elif op_type == "clawback":
             if op.get("asset_code") != ASSET_CODE or op.get("asset_issuer") != ISSUER:
@@ -191,7 +206,14 @@ def build_supply_history(delta_by_date, initial_cumulative=0.0):
 def build_holders_snapshot(ops, prev_balances=None):
     """
     Track EURCV holder count by maintaining per-account balances.
-    Processes payment (to/from) and change_trust (close = balance → 0) ops.
+
+    Sources (in priority order for each op type):
+    - payment           : classic transfer, direct src/dst/amount
+    - invoke_host_function : Soroban SAC — uses asset_balance_changes when
+                          available (mint/transfer/burn/clawback decoded by
+                          Horizon, no XDR required)
+    - change_trust      : trust line closed (limit=0) → balance → 0
+
     Returns (daily_snapshots, final_balances).
     """
     balances = dict(prev_balances) if prev_balances else {}
@@ -210,6 +232,18 @@ def build_holders_snapshot(ops, prev_balances=None):
             src, dst = op.get("from", ""), op.get("to", "")
             events_by_date[date].append(("payment", src, dst, amount))
 
+        elif op_type == "invoke_host_function":
+            # Horizon decodes SAC balance changes — no XDR needed
+            for change in op.get("asset_balance_changes", []):
+                if (change.get("asset_code") != ASSET_CODE
+                        or change.get("asset_issuer") != ISSUER):
+                    continue
+                ctype  = change.get("type", "")
+                from_  = change.get("from") or ""
+                to_    = change.get("to")   or ""
+                amount = float(change.get("amount", 0))
+                events_by_date[date].append(("sac", ctype, from_, to_, amount))
+
         elif op_type == "change_trust":
             if op.get("asset_code") != ASSET_CODE or op.get("asset_issuer") != ISSUER:
                 continue
@@ -226,6 +260,21 @@ def build_holders_snapshot(ops, prev_balances=None):
                     balances[src] = balances.get(src, 0.0) - amount
                 if dst and dst not in (ISSUER, ADMIN):
                     balances[dst] = balances.get(dst, 0.0) + amount
+
+            elif event[0] == "sac":
+                _, ctype, from_, to_, amount = event
+                if ctype == "mint":
+                    if to_ and to_ not in (ISSUER, ADMIN):
+                        balances[to_] = balances.get(to_, 0.0) + amount
+                elif ctype in ("burn", "clawback"):
+                    if from_ and from_ not in (ISSUER, ADMIN):
+                        balances[from_] = balances.get(from_, 0.0) - amount
+                elif ctype == "transfer":
+                    if from_ and from_ not in (ISSUER, ADMIN):
+                        balances[from_] = balances.get(from_, 0.0) - amount
+                    if to_ and to_ not in (ISSUER, ADMIN):
+                        balances[to_] = balances.get(to_, 0.0) + amount
+
             elif event[0] == "change_trust":
                 _, trustor, limit = event
                 if limit == 0 and trustor:
