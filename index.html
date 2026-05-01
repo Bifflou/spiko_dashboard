@@ -963,12 +963,29 @@
 
       // Datasets are stored in reversed-paired order → pill[i] = dataset[i]
       const pairedRev = [...paired].reverse();
+
+      function syncXRange() {
+        let minDate = null;
+        pairedRev.forEach((p, j) => {
+          if (!lineChart.isDatasetVisible(j)) return;
+          if (!minDate || p.startDate < minDate) minDate = p.startDate;
+        });
+        if (!minDate) return;
+        const minIdx = rawDates.indexOf(minDate);
+        lineChart.options.scales.x.min = labels[minIdx >= 0 ? minIdx : 0];
+        lineChart.options.scales.x.max = labels[labels.length - 1];
+      }
+
       buildPillLegend(
         canvasId,
         chartId,
         pairedRev.map(p => ({ color: p.chain.color, label: p.chain.label })),
         i => !lineChart.isDatasetVisible(i),
-        i => { lineChart.isDatasetVisible(i) ? lineChart.hide(i) : lineChart.show(i); }
+        i => {
+          lineChart.data.datasets[i].hidden = lineChart.isDatasetVisible(i);
+          syncXRange();
+          lineChart.update({ duration: 400, easing: 'easeInOutQuart' });
+        }
       );
       return lineChart;
     }
