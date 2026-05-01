@@ -152,7 +152,7 @@ def process_supply(ops):
         elif op_type == "invoke_host_function":
             # Prefer Horizon-decoded asset_balance_changes (no XDR needed)
             changes = [
-                c for c in op.get("asset_balance_changes", [])
+                c for c in op.get("asset_balance_changes") or []
                 if c.get("asset_code") == ASSET_CODE and c.get("asset_issuer") == ISSUER
             ]
             if changes:
@@ -234,7 +234,7 @@ def build_holders_snapshot(ops, prev_balances=None):
 
         elif op_type == "invoke_host_function":
             # Horizon decodes SAC balance changes — no XDR needed
-            for change in op.get("asset_balance_changes", []):
+            for change in op.get("asset_balance_changes") or []:
                 if (change.get("asset_code") != ASSET_CODE
                         or change.get("asset_issuer") != ISSUER):
                     continue
