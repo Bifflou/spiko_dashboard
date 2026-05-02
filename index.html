@@ -447,7 +447,7 @@
       .global-grid    { grid-template-columns: 1fr; }
       .kpi-grid       { gap: 0.9rem; margin-bottom: 1.5rem; }
       .chart-wrap     { height: 260px; }
-      .col-ticker, .col-peg, .col-issuer, .col-chains, .col-7d { display: none; }
+      .col-ticker, .col-peg, .col-issuer, .col-type, .col-chains, .col-7d { display: none; }
       .tracker-row td { padding: 0.85rem 0.75rem; }
       .token-logo     { width: 30px; height: 30px; }
       .chain-logo     { width: 22px; height: 22px; }
@@ -736,6 +736,7 @@
             <th class="col-ticker" style="width:72px">Ticker</th>
             <th class="col-peg" style="width:60px">Peg</th>
             <th class="col-issuer" style="width:88px">Émetteur</th>
+            <th class="col-type" style="width:96px">Type</th>
             <th class="col-chains" style="width:130px">Chaînes</th>
             <th class="th-sortable th-right col-mcap" data-sort="mcap" style="width:120px">Market Cap <span class="sort-icon" id="si-mcap">↓</span></th>
             <th class="th-right col-1d" style="width:64px">1J</th>
@@ -1641,6 +1642,7 @@
         id: 'eurcv', name: 'EUR CoinVertible', ticker: 'EURCV',
         peg: { symbol: '€', code: 'EUR' },
         issuer: 'SG Forge',
+        type: 'Centralisé',
         logo: './img/eurcv.png',
         chainDefs: EURCV_CHAINS,
         chainLogos: [
@@ -1654,6 +1656,7 @@
         id: 'usdcv', name: 'USD CoinVertible', ticker: 'USDCV',
         peg: { symbol: '$', code: 'USD' },
         issuer: 'SG Forge',
+        type: 'Centralisé',
         logo: './img/usdcv.png',
         chainDefs: USDCV_CHAINS,
         chainLogos: [
@@ -1815,6 +1818,7 @@
           <td class="td-ticker col-ticker">${token.ticker}</td>
           <td class="td-ticker col-peg">${token.peg ? token.peg.code : '—'}</td>
           <td class="td-ticker col-issuer">${token.issuer || '—'}</td>
+          <td class="td-ticker col-type">${token.type || '—'}</td>
           <td class="td-chains col-chains">${chainLogosHtml}</td>
           <td class="td-mcap col-mcap">${fmtKpiMcap(token.mcap, mcapSym)}</td>
           <td class="td-change col-1d">${fmtChg(token.chg1d).html}</td>
