@@ -224,6 +224,7 @@
     .tracker-table {
       width: 100%;
       border-collapse: collapse;
+      table-layout: fixed;
     }
 
     .tracker-table thead th {
@@ -276,6 +277,13 @@
       gap: 0.75rem;
       font-weight: 600;
       color: var(--text);
+      overflow: hidden;
+    }
+    .td-name-text {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      min-width: 0;
     }
 
     .token-logo {
@@ -723,18 +731,18 @@
       <table class="tracker-table">
         <thead>
           <tr>
-            <th style="width:40px">#</th>
-            <th class="th-sortable th-name" data-sort="name">Token <span class="sort-icon" id="si-name">↕</span></th>
-            <th class="col-ticker" style="width:80px">Ticker</th>
-            <th class="col-peg" style="width:70px">Peg</th>
-            <th class="col-issuer" style="width:90px">Émetteur</th>
-            <th class="col-chains" style="width:140px">Chaînes</th>
-            <th class="th-sortable th-right col-mcap" data-sort="mcap" style="width:130px">Market Cap <span class="sort-icon" id="si-mcap">↓</span></th>
-            <th class="th-right col-1d" style="width:72px">1J</th>
-            <th class="th-right col-7d" style="width:72px">7J</th>
-            <th class="th-right col-1m" style="width:72px">1M</th>
-            <th class="th-sortable th-right col-holders" data-sort="holders" style="width:110px">Holders <span class="sort-icon" id="si-holders">↕</span></th>
-            <th style="width:44px"></th>
+            <th style="width:36px">#</th>
+            <th class="th-sortable th-name" data-sort="name" style="width:190px">Token <span class="sort-icon" id="si-name">↕</span></th>
+            <th class="col-ticker" style="width:72px">Ticker</th>
+            <th class="col-peg" style="width:60px">Peg</th>
+            <th class="col-issuer" style="width:88px">Émetteur</th>
+            <th class="col-chains" style="width:130px">Chaînes</th>
+            <th class="th-sortable th-right col-mcap" data-sort="mcap" style="width:120px">Market Cap <span class="sort-icon" id="si-mcap">↓</span></th>
+            <th class="th-right col-1d" style="width:64px">1J</th>
+            <th class="th-right col-7d" style="width:64px">7J</th>
+            <th class="th-right col-1m" style="width:64px">1M</th>
+            <th class="th-sortable th-right col-holders" data-sort="holders" style="width:100px">Holders <span class="sort-icon" id="si-holders">↕</span></th>
+            <th style="width:40px"></th>
           </tr>
         </thead>
         <tbody id="tracker-tbody"></tbody>
@@ -1802,7 +1810,7 @@
           <td class="td-rank">${idx + 1}</td>
           <td class="td-name">
             <img src="${token.logo}" class="token-logo" alt="${token.ticker}" onerror="this.style.display='none'">
-            ${token.name}
+            <span class="td-name-text">${token.name}</span>
           </td>
           <td class="td-ticker col-ticker">${token.ticker}</td>
           <td class="td-ticker col-peg">${token.peg ? token.peg.code : '—'}</td>
