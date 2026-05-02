@@ -431,12 +431,17 @@
       .global-grid { grid-template-columns: repeat(2, 1fr); }
     }
 
+    /* ── Tablette paysage (≤ 1199px) ────────────────────────────────────── */
+    @media (max-width: 1199px) {
+      .col-ticker, .col-peg, .col-mica, .col-integration { display: none; }
+    }
+
     /* ── Tablette portrait (≤ 1023px) ───────────────────────────────────── */
     @media (max-width: 1023px) {
       .main-content   { padding: 1.5rem 1.75rem; }
       .kpi-grid       { grid-template-columns: repeat(2, 1fr); }
       .expand-inner   { grid-template-columns: 1fr; }
-      .col-1m         { display: none; }
+      .col-1m, .col-7d, .col-type, .col-issuer { display: none; }
     }
 
     /* ── Téléphone paysage / petite tablette (≤ 767px) ─────────────────── */
