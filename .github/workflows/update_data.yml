@@ -48,6 +48,9 @@ jobs:
       - name: Fetch Etherlink data (7 tokens)
         run: python scripts/fetch_etherlink_data.py
 
+      - name: Fetch Starknet data (all 9 tokens)
+        run: python scripts/fetch_starknet_data.py
+
       - name: Fetch Stellar data (all 9 tokens)
         run: python scripts/fetch_stellar_data.py
 
