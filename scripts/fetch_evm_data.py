@@ -119,6 +119,15 @@ def explorer_get(cfg, params):
     return resp.json()
 
 def get_token_decimals(cfg, token_address):
+    api_base = cfg.get('api_base')
+    if api_base:
+        # Blockscout v2 REST API — proxy/eth_call not supported on Blockscout
+        v2_url = api_base.rstrip('/api').rstrip('/') + f'/api/v2/tokens/{token_address}'
+        resp = requests.get(v2_url, timeout=30)
+        if resp.ok:
+            dec = resp.json().get('decimals')
+            return int(dec) if dec is not None else 18
+        return 18
     data = explorer_get(cfg, {
         'module': 'proxy', 'action': 'eth_call',
         'to': token_address, 'data': '0x313ce567', 'tag': 'latest',

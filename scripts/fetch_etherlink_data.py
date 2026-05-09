@@ -53,11 +53,13 @@ def blockscout_get(params):
     return resp.json()
 
 def get_token_decimals(token_address):
-    data = blockscout_get({
-        'module': 'proxy', 'action': 'eth_call',
-        'to': token_address, 'data': '0x313ce567', 'tag': 'latest',
-    })
-    return int(data.get('result', '0x12'), 16)
+    # Blockscout v2 REST API — proxy/eth_call not supported on Blockscout
+    v2_url = BLOCKSCOUT_URL.rstrip('/api').rstrip('/') + f'/api/v2/tokens/{token_address}'
+    resp = requests.get(v2_url, timeout=30)
+    if resp.ok:
+        dec = resp.json().get('decimals')
+        return int(dec) if dec is not None else 18
+    return 18
 
 
 # ── Log fetching ───────────────────────────────────────────────────────────────
