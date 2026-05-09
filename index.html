@@ -643,6 +643,10 @@
     <span class="header-badge">Spiko</span>
     <div style="display:flex; align-items:center; gap:8px; margin-left:auto; flex-shrink:0;">
       <div class="toggle-wrap">
+        <button class="toggle-btn active" id="btn-usd" onclick="setCurrency('USD')">$ USD</button>
+        <button class="toggle-btn"        id="btn-eur" onclick="setCurrency('EUR')">€ EUR</button>
+      </div>
+      <div class="toggle-wrap">
         <button class="toggle-btn" id="btn-light" onclick="setTheme('light')">☀ Jour</button>
         <button class="toggle-btn" id="btn-dark"  onclick="setTheme('dark')">🌙 Nuit</button>
       </div>
@@ -817,6 +821,36 @@
       if (v >= 1e3) return '€' + (v / 1e3).toFixed(0) + 'K';
       return '€' + v;
     }
+
+    // ── Currency toggle ─────────────────────────────────────────────────────────
+    let fxRatesData    = {};
+    let displayCurrency = 'USD';
+
+    function getLastEurRate(isoDate) {
+      const rates = fxRatesData['EUR'];
+      if (!rates) return null;
+      let last = null;
+      for (const d of Object.keys(rates).sort()) {
+        if (d <= isoDate) last = rates[d]; else break;
+      }
+      return last;
+    }
+
+    function getMcapTransformFn() {
+      if (displayCurrency === 'USD') return null;
+      return (val, date) => { const r = getLastEurRate(date); return r ? val / r : val; };
+    }
+
+    function convertMcapToDisplay(usdVal) {
+      if (displayCurrency === 'USD') return usdVal;
+      const today = new Date().toISOString().slice(0, 10);
+      const r = getLastEurRate(today);
+      return r ? usdVal / r : usdVal;
+    }
+
+    function fmtMcapVal(v)  { return displayCurrency === 'EUR' ? fmtEUR(v)     : fmtUSD(v); }
+    function fmtAxisMcap(v) { return displayCurrency === 'EUR' ? fmtAxisEUR(v) : fmtAxisUSD(v); }
+
     function fmtDate(s) {
       const [y, m, d] = s.split('-');
       return `${d}/${m}/${String(y).slice(2)}`;
@@ -828,7 +862,7 @@
     }
 
     // ── Stacked area helpers ────────────────────────────────────────────────────
-    function buildStacked(chains, seriesArr, valueKey) {
+    function buildStacked(chains, seriesArr, valueKey, transformFn) {
       const paired = chains.map((chain, i) => ({
         chain,
         series: seriesArr[i],
@@ -841,7 +875,7 @@
       const allDates = [...dateSet].sort();
 
       const filled = paired.map(({ series, startDate }) => {
-        const map = Object.fromEntries(series.map(d => [d.date, d[valueKey]]));
+        const map = Object.fromEntries(series.map(d => [d.date, transformFn ? transformFn(d[valueKey], d.date) : d[valueKey]]));
         let last = 0;
         return allDates.map(date => {
           if (date < startDate) return 0;
@@ -1045,22 +1079,22 @@
     }
 
     // ── Pie chart ───────────────────────────────────────────────────────────────
-    function getLatestValues(seriesArr, valueKey) {
+    function getLatestValues(seriesArr, valueKey, transformFn) {
       return seriesArr.map(series => {
         if (!series || !series.length) return 0;
         for (let i = series.length - 1; i >= 0; i--) {
           const v = series[i][valueKey];
-          if (v != null && v > 0) return v;
+          if (v != null && v > 0) return transformFn ? transformFn(v, series[i].date) : v;
         }
         return 0;
       });
     }
 
-    function buildPieChart(canvasId, seriesArr, chains, valueKey, fmtVal) {
+    function buildPieChart(canvasId, seriesArr, chains, valueKey, fmtVal, transformFn) {
       const ctx     = document.getElementById(canvasId).getContext('2d');
       const chartId = canvasId.replace(/^chart-/, '');
       const saved   = hiddenStates[chartId] || {};
-      const values  = getLatestValues(seriesArr, valueKey);
+      const values  = getLatestValues(seriesArr, valueKey, transformFn);
       const active  = chains.map((chain, i) => ({ chain, value: values[i] })).filter(d => d.value > 0);
       const baseBg  = active.map(d => d.chain.color + 'CC');  // visibility handled by toggleDataVisibility, not opacity
 
@@ -1285,35 +1319,41 @@
       const chainMcapArr    = Object.entries(chainTotals).map(([label, v]) => ({ label, color: v.color, value: v.mcap    })).sort((a, b) => b.value - a.value);
       const chainHoldersArr = Object.entries(chainTotals).map(([label, v]) => ({ label, color: v.color, value: v.holders })).sort((a, b) => b.value - a.value);
 
-      // ── Card 1 — Total Market Cap (USD) ───────────────────────────────────
+      // ── Apply currency conversion for display ─────────────────────────────
+      const sym          = displayCurrency === 'EUR' ? '€' : '$';
+      const dispGrand    = convertMcapToDisplay(grandMcap);
+      const dispTokens   = tokenTotals.map(t => ({ ...t, mcap: convertMcapToDisplay(t.mcap) }));
+      const dispChains   = chainMcapArr.map(c => ({ ...c, value: convertMcapToDisplay(c.value) }));
+
+      // ── Card 1 — Total Market Cap ─────────────────────────────────────────
       document.getElementById('kpi-total-mcap').innerHTML = `
-        <div class="kpi-label">Total Market Cap (USD)</div>
-        <div class="kpi-main">${fmtKpiMcap(grandMcap, '$')}</div>
+        <div class="kpi-label">Total Market Cap (${displayCurrency})</div>
+        <div class="kpi-main">${fmtKpiMcap(dispGrand, sym)}</div>
         <div class="kpi-details">
-          ${tokenTotals.filter(t => t.mcap > 0).sort((a,b) => b.mcap - a.mcap).map(t => `
+          ${dispTokens.filter(t => t.mcap > 0).sort((a,b) => b.mcap - a.mcap).map(t => `
             <div class="kpi-row">
               <div class="kpi-dot" style="background:${t.color}"></div>
               <span class="kpi-row-name">${t.ticker}</span>
-              <span class="kpi-row-val">${fmtDetailMcap(t.mcap, '$')}</span>
-              <span class="kpi-row-pct">(${pct(t.mcap, grandMcap)})</span>
+              <span class="kpi-row-val">${fmtDetailMcap(t.mcap, sym)}</span>
+              <span class="kpi-row-pct">(${pct(t.mcap, dispGrand)})</span>
             </div>`).join('')}
         </div>`;
 
       // ── Card 2 — Market Cap by Chain ──────────────────────────────────────
-      const [topChainMcap, ...otherChainsMcap] = chainMcapArr.filter(c => c.value > 0);
+      const [topChainMcap, ...otherChainsMcap] = dispChains.filter(c => c.value > 0);
       document.getElementById('kpi-chain-mcap').innerHTML = `
-        <div class="kpi-label">Market Cap par Chaîne (USD)</div>
+        <div class="kpi-label">Market Cap par Chaîne (${displayCurrency})</div>
         ${topChainMcap ? `
-          <div class="kpi-main">${fmtKpiMcap(topChainMcap.value, '$')}</div>
-          <div class="kpi-main-sub"><span style="color:${topChainMcap.color}">${topChainMcap.label}</span> <span class="kpi-row-pct">(${pct(topChainMcap.value, grandMcap)})</span></div>
+          <div class="kpi-main">${fmtKpiMcap(topChainMcap.value, sym)}</div>
+          <div class="kpi-main-sub"><span style="color:${topChainMcap.color}">${topChainMcap.label}</span> <span class="kpi-row-pct">(${pct(topChainMcap.value, dispGrand)})</span></div>
         ` : '<div class="kpi-main">—</div>'}
         <div class="kpi-details">
           ${otherChainsMcap.map(c => `
             <div class="kpi-row">
               <div class="kpi-dot" style="background:${c.color}"></div>
               <span class="kpi-row-name">${c.label}</span>
-              <span class="kpi-row-val">${fmtDetailMcap(c.value, '$')}</span>
-              <span class="kpi-row-pct">(${pct(c.value, grandMcap)})</span>
+              <span class="kpi-row-val">${fmtDetailMcap(c.value, sym)}</span>
+              <span class="kpi-row-pct">(${pct(c.value, dispGrand)})</span>
             </div>`).join('')}
         </div>`;
 
@@ -1393,8 +1433,12 @@
       const canvasId = 'chart-global-' + id;
 
       // ── Smooth in-place update (currency switch on an existing line chart) ──
+      const isMcap = id.startsWith('mcap-');
+      if (isMcap) { d.fmtVal = fmtMcapVal; d.fmtAxis = fmtAxisMcap; }
+      const transformFn = isMcap ? getMcapTransformFn() : null;
+
       if (isSmoothing && d.chart && d.mode === 'line') {
-        const stacked = buildStacked(d.chains, d.seriesArr, 'value');
+        const stacked = buildStacked(d.chains, d.seriesArr, 'value', transformFn);
         // datasets are stored in reversed-paired order: dataset[i] = paired[n-1-i]
         stacked.filled.forEach((fillData, pi) => {
           const di = stacked.paired.length - 1 - pi;
@@ -1414,9 +1458,9 @@
       const wrap = document.getElementById(canvasId).parentElement;
       wrap.innerHTML = `<canvas id="${canvasId}"></canvas>`;
       if (d.mode === 'line') {
-        d.chart = buildLineChart(canvasId, buildStacked(d.chains, d.seriesArr, 'value'), d.fmtVal, d.fmtAxis);
+        d.chart = buildLineChart(canvasId, buildStacked(d.chains, d.seriesArr, 'value', transformFn), d.fmtVal, d.fmtAxis);
       } else {
-        d.chart = buildPieChart(canvasId, d.seriesArr, d.chains, 'value', d.fmtVal);
+        d.chart = buildPieChart(canvasId, d.seriesArr, d.chains, 'value', d.fmtVal, transformFn);
       }
       syncModeButtons(id, d.mode);
     }
@@ -1435,14 +1479,41 @@
       rebuildGlobalChart(id);
     }
 
+    function setCurrency(c) {
+      displayCurrency = c;
+      document.getElementById('btn-usd').classList.toggle('active', c === 'USD');
+      document.getElementById('btn-eur').classList.toggle('active', c === 'EUR');
+
+      // Rebuild global mcap charts (titles update inside rebuildGlobalChart via fmtVal)
+      rebuildGlobalChart('mcap-token');
+      rebuildGlobalChart('mcap-chain');
+
+      // Update global chart titles
+      const titleToken = document.getElementById('global-mcap-token-title');
+      const titleChain = document.getElementById('global-mcap-chain-title');
+      if (titleToken) titleToken.textContent = `Total Market Cap par Token (${c})`;
+      if (titleChain) titleChain.textContent = `Total Market Cap par Chaîne (${c})`;
+
+      // Rebuild KPI cards and tracker table
+      buildKpiCards();
+      buildTrackerTable();
+
+      // Rebuild per-token mcap chart if accordion is open
+      if (openToken) {
+        rebuildChart(openToken, 'mcap');
+        const titleEl = document.getElementById(`${openToken}-mcap-title`);
+        if (titleEl) titleEl.textContent = `Market Capitalisation (${c})`;
+      }
+    }
+
     function buildGlobalCharts() {
       // ── Market Cap by Token ─────────────────────────────────────────────────
       globalData['mcap-token'].chains    = GLOBAL_TOKEN_CHAINS;
       globalData['mcap-token'].seriesArr = TOKEN_DEFS.map(def =>
         mergeSeries(state[def.id].mcapData.map(s => ({ series: s, key: 'marketcap' })))
       );
-      globalData['mcap-token'].fmtVal  = fmtUSD;
-      globalData['mcap-token'].fmtAxis = fmtAxisUSD;
+      globalData['mcap-token'].fmtVal  = fmtMcapVal;
+      globalData['mcap-token'].fmtAxis = fmtAxisMcap;
       rebuildGlobalChart('mcap-token');
 
       // ── Market Cap by Chain ─────────────────────────────────────────────────
@@ -1453,8 +1524,8 @@
           return idx < 0 ? [] : [{ series: state[def.id].mcapData[idx], key: 'marketcap' }];
         }))
       );
-      globalData['mcap-chain'].fmtVal  = fmtUSD;
-      globalData['mcap-chain'].fmtAxis = fmtAxisUSD;
+      globalData['mcap-chain'].fmtVal  = fmtMcapVal;
+      globalData['mcap-chain'].fmtAxis = fmtAxisMcap;
       rebuildGlobalChart('mcap-chain');
 
       // ── Holders by Token ────────────────────────────────────────────────────
@@ -1496,9 +1567,9 @@
         const wrap = canvas.parentElement;
         wrap.innerHTML = `<canvas id="${canvasId}"></canvas>`;
         if (s.mcapMode === 'line') {
-          s.mcapChart = buildLineChart(canvasId, buildStacked(chains, s.mcapData, 'marketcap'), fmtUSD, fmtAxisUSD);
+          s.mcapChart = buildLineChart(canvasId, buildStacked(chains, s.mcapData, 'marketcap', getMcapTransformFn()), fmtMcapVal, fmtAxisMcap);
         } else {
-          s.mcapChart = buildPieChart(canvasId, s.mcapData, chains, 'marketcap', fmtUSD);
+          s.mcapChart = buildPieChart(canvasId, s.mcapData, chains, 'marketcap', fmtMcapVal, getMcapTransformFn());
         }
       } else {
         if (s.holdersChart) { s.holdersChart.destroy(); s.holdersChart = null; }
@@ -1707,7 +1778,7 @@
       return `
         <div class="expand-chart-card">
           <div class="card-header">
-            <h2 id="${id}-mcap-title">Market Capitalisation (USD)</h2>
+            <h2 id="${id}-mcap-title">Market Capitalisation (${displayCurrency})</h2>
             <div class="toggle-wrap">
               <button class="toggle-btn active" id="${id}-mcap-btn-line" onclick="setView('${id}','mcap','line')" title="Courbe">${SVG_LINE}</button>
               <button class="toggle-btn"        id="${id}-mcap-btn-pie"  onclick="setView('${id}','mcap','pie')"  title="Camembert">${SVG_PIE}</button>
@@ -1744,7 +1815,7 @@
                                          : (va > vb ? -1 : va < vb ? 1 : 0);
       });
 
-      const mcapSym = '$';
+      const mcapSym = displayCurrency === 'EUR' ? '€' : '$';
       const tbody = document.getElementById('tracker-tbody');
       tbody.innerHTML = '';
 
@@ -1772,7 +1843,7 @@
           <td class="td-chains col-chains">${chainLogosHtml}</td>
           <td class="td-ticker col-integration">${token.integration || '—'}</td>
           <td class="td-holders col-holders" title="* Comptage non dédupliqué cross-chaîne">${fmtSpaced(token.holders)}<span class="holders-star">*</span></td>
-          <td class="td-mcap col-mcap">${fmtKpiMcap(token.mcap, mcapSym)}</td>
+          <td class="td-mcap col-mcap">${fmtKpiMcap(convertMcapToDisplay(token.mcap), mcapSym)}</td>
           <td class="td-change col-1d">${fmtChg(token.chg1d).html}</td>
           <td class="td-change col-7d">${fmtChg(token.chg7d).html}</td>
           <td class="td-change col-1m">${fmtChg(token.chg1m).html}</td>
@@ -1884,20 +1955,22 @@
       });
       if (openToken) {
         const titleEl = document.getElementById(`${openToken}-mcap-title`);
-        if (titleEl) titleEl.textContent = 'Market Capitalisation (USD)';
+        if (titleEl) titleEl.textContent = `Market Capitalisation (${displayCurrency})`;
       }
     }
 
 
     // ── Init ────────────────────────────────────────────────────────────────────
     async function init() {
-      // Load all data files for every token × chain in parallel
+      // Load all data files for every token × chain in parallel (plus fx_rates)
       const allFiles = TOKEN_DEFS.flatMap(def =>
         def.chainDefs.flatMap(c => [c.mcapFile, c.holdersFile])
       );
-      const results = await Promise.all(
-        allFiles.map(f => fetch(f).then(r => r.ok ? r.json() : []).catch(() => []))
-      );
+      const [fxRates, ...results] = await Promise.all([
+        fetch('data/fx_rates.json').then(r => r.ok ? r.json() : {}).catch(() => ({})),
+        ...allFiles.map(f => fetch(f).then(r => r.ok ? r.json() : []).catch(() => []))
+      ]);
+      fxRatesData = fxRates || {};
 
       // Distribute results into state — order matches allFiles construction above
       let idx = 0;
@@ -1915,7 +1988,11 @@
       // Sync theme buttons with saved preference
       const savedTheme = document.documentElement.getAttribute('data-theme') || 'dark';
       document.getElementById('btn-light').classList.toggle('active', savedTheme === 'light');
-      document.getElementById('btn-dark').classList.toggle('active', savedTheme === 'dark');
+      document.getElementById('btn-dark').classList.toggle('active',  savedTheme === 'dark');
+
+      // Sync currency buttons
+      document.getElementById('btn-usd').classList.toggle('active', displayCurrency === 'USD');
+      document.getElementById('btn-eur').classList.toggle('active', displayCurrency === 'EUR');
 
       buildKpiCards();
       buildGlobalCharts();
