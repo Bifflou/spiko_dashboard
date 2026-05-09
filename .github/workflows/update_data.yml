@@ -45,6 +45,9 @@ jobs:
           ETHERSCAN_API_KEY: ${{ secrets.ETHERSCAN_API_KEY }}
         run: python scripts/fetch_evm_data.py arb
 
+      - name: Fetch Etherlink data (7 tokens)
+        run: python scripts/fetch_etherlink_data.py
+
       - name: Fetch Stellar data (all 9 tokens)
         run: python scripts/fetch_stellar_data.py
 
