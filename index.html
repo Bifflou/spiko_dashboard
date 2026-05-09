@@ -1238,59 +1238,6 @@
       return pieChart;
     }
 
-    // ── EUR/USD rates ───────────────────────────────────────────────────────────
-    const FALLBACK_RATE = 1.08;
-
-    async function loadEurUsdRates() {
-      try {
-        const resp = await fetch('data/eurusd_rates.json');
-        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-        return await resp.json();
-      } catch (e) {
-        console.warn('[EUR/USD] Failed to load eurusd_rates.json:', e.message ?? e);
-        document.getElementById('rate-warning').style.display = '';
-        return {};
-      }
-    }
-
-    // EURCV: supply is in EUR → marketcap (USD) = supply × rate
-    // Iterates over union of supply dates + rate dates so daily FX moves are reflected
-    function applyEurUsdRates(supplyData, rates) {
-      if (!supplyData.length) return supplyData;
-      const rateKeys  = Object.keys(rates);
-      if (!rateKeys.length) return supplyData.map(item => ({ ...item, marketcap: Math.round(item.supply * FALLBACK_RATE * 100) / 100 }));
-      const supplyMap = Object.fromEntries(supplyData.map(d => [d.date, d.supply]));
-      const allDates  = [...new Set([...supplyData.map(d => d.date), ...rateKeys])].sort();
-      let lastSupply = 0, lastRate = FALLBACK_RATE;
-      const result = [];
-      for (const date of allDates) {
-        if (date in supplyMap) lastSupply = supplyMap[date];
-        if (date in rates)     lastRate   = rates[date];
-        if (lastSupply <= 0) continue;
-        result.push({ date, supply: lastSupply, marketcap: Math.round(lastSupply * lastRate * 100) / 100 });
-      }
-      return result;
-    }
-
-    // USDCV: supply is in USD → supply_eur = supply / rate
-    // Same approach: daily FX fluctuations reflected even when supply is unchanged
-    function applyUsdcvRates(supplyData, rates) {
-      if (!supplyData.length) return supplyData;
-      const rateKeys  = Object.keys(rates);
-      if (!rateKeys.length) return supplyData.map(item => ({ ...item, supply_eur: Math.round(item.supply / FALLBACK_RATE * 100) / 100 }));
-      const supplyMap = Object.fromEntries(supplyData.map(d => [d.date, d.supply]));
-      const allDates  = [...new Set([...supplyData.map(d => d.date), ...rateKeys])].sort();
-      let lastSupply = 0, lastRate = FALLBACK_RATE;
-      const result = [];
-      for (const date of allDates) {
-        if (date in supplyMap) lastSupply = supplyMap[date];
-        if (date in rates)     lastRate   = rates[date];
-        if (lastSupply <= 0) continue;
-        result.push({ date, supply: lastSupply, supply_eur: Math.round(lastSupply / lastRate * 100) / 100 });
-      }
-      return result;
-    }
-
     // ── KPI helpers ─────────────────────────────────────────────────────────────
     function getLatestValue(series, key) {
       if (!series || !series.length) return 0;
