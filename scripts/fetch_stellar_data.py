@@ -1,27 +1,28 @@
 """
 Fetch supply & holder history for all Spiko tokens on Stellar.
-Spiko tokens are Soroban contracts (C... addresses), not classic Stellar assets.
+Spiko tokens are Soroban SEP-41 contracts (C... addresses).
 
 Strategy:
-- Current state : stellar.expert contract endpoint
-- Historical    : Horizon /accounts/{contract}/operations (Soroban contracts are
-                  indexed as accounts in Horizon) + asset_balance_changes parsing
-- Holders       : stellar.expert daily snapshot (Soroban holders list)
-- FX            : frankfurter.app for non-USD tokens
+- Events: stellar.expert /contract/{address}/events (cursor pagination)
+  Each event has: ts (timestamp), topics (decoded), bodyXdr (i128 amount)
+- Event types: transfer, mint, burn, clawback — applied to a balance map
+- Supply = sum of positive balances after all events
+- Holders = count of addresses with positive balance
+- FX: frankfurter.app for EUR/GBP/CHF → USD
 """
 
+import base64
 import json
 import os
 import requests
+import struct
 import time
 from collections import defaultdict
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 
-HORIZON      = "https://horizon.stellar.org"
-EXPERT_BASE  = "https://api.stellar.expert"
+EXPERT_BASE   = "https://api.stellar.expert"
 STELLAR_SCALE = 10 ** 7
 
-# (contract_address, native_currency)
 TOKENS = {
     'eutbl':    ('CBGV2QFQBBGEQRUKUMCPO3SZOHDDYO6SCP5CH6TW7EALKVHCXTMWDDOF', 'EUR'),
     'ustbl':    ('CARUUX2FZNPH6DGJOEUFSIUQWYHNL5AVDV7PMVSHWL7OBYIBFC76F4TO', 'USD'),
@@ -47,153 +48,142 @@ def save_json(path, data):
     with open(path, 'w') as f:
         json.dump(data, f)
 
-def iso_to_date(iso):
-    return iso[:10] if iso else ''
 
+# ── XDR amount decoding ────────────────────────────────────────────────────────
 
-# ── stellar.expert — current state ─────────────────────────────────────────────
-
-def get_contract_current_state(contract_address):
+def decode_amount(body_xdr):
     """
-    Fetch current supply and holder count from stellar.expert.
-    Returns (supply_float, holders_int) or (0.0, 0) on failure.
+    Decode a Soroban SCVal (base64 XDR) to a Python int.
+    SEP-41 token amounts are encoded as SCV_I128 (type=10) or SCV_U128 (type=9).
+    Layout: 4 bytes type | 8 bytes hi (int64) | 8 bytes lo (uint64)
     """
-    url = f"{EXPERT_BASE}/explorer/public/contract/{contract_address}"
     try:
-        resp = requests.get(url, timeout=30)
-        resp.raise_for_status()
-        data = resp.json()
-        # stellar.expert wraps token info in a 'token' sub-object for contracts
-        token = data.get('token') or data
-        raw_supply  = token.get('supply', token.get('total_supply', 0)) or 0
-        raw_holders = token.get('holders_count', token.get('holders', 0)) or 0
-        supply  = float(raw_supply)  / STELLAR_SCALE
-        holders = int(raw_holders)
-        return round(supply, 7), holders
-    except Exception as e:
-        print(f'    [stellar.expert] contract info error: {e}')
-        return 0.0, 0
-
-
-def get_contract_holders(contract_address):
-    """
-    Try the /holders sub-endpoint for more precise holder count.
-    Falls back to 0 on error.
-    """
-    url = f"{EXPERT_BASE}/explorer/public/contract/{contract_address}/holders"
-    try:
-        resp = requests.get(url, timeout=30)
-        resp.raise_for_status()
-        data = resp.json()
-        # Count records with positive balance
-        records = data.get('_embedded', {}).get('records', [])
-        if not records and isinstance(data, list):
-            records = data
-        count = sum(
-            1 for r in records
-            if float(r.get('balance', r.get('amount', 0)) or 0) > 0
-        )
-        return count or None  # None → caller falls back to contract info
+        data = base64.b64decode(body_xdr)
+        if len(data) < 4:
+            return 0
+        val_type = struct.unpack('>I', data[0:4])[0]
+        if val_type in (9, 10) and len(data) >= 20:  # U128 or I128
+            hi = struct.unpack('>Q', data[4:12])[0]
+            lo = struct.unpack('>Q', data[12:20])[0]
+            return lo + hi * (2 ** 64)
+        if val_type == 5 and len(data) >= 12:  # SCV_U64
+            return struct.unpack('>Q', data[4:12])[0]
+        if val_type == 6 and len(data) >= 12:  # SCV_I64
+            return struct.unpack('>q', data[4:12])[0]
     except Exception:
-        return None
+        pass
+    return 0
 
 
-# ── Horizon — historical operations ───────────────────────────────────────────
+# ── stellar.expert events ──────────────────────────────────────────────────────
 
-def get_account_operations_since(account, cursor=None):
+def fetch_all_events(contract_address, cursor=None):
     """
-    Paginate through all operations for an account (or contract) on Horizon.
-    Returns (ops_list, last_op_id).
+    Fetch all contract events from stellar.expert in ascending order.
+    Resumes from `cursor` if provided.
+    Returns (events_list, last_paging_token).
     """
-    all_ops    = []
-    last_op_id = cursor
-    url        = f"{HORIZON}/accounts/{account}/operations"
-    params     = {'order': 'asc', 'limit': 200, 'include_failed': 'false'}
+    all_events     = []
+    last_token     = cursor
+    url            = f"{EXPERT_BASE}/explorer/public/contract/{contract_address}/events"
+    params         = {'order': 'asc', 'limit': 200}
     if cursor:
         params['cursor'] = cursor
 
     use_params = True
-    page = 1
+    page       = 1
+
     while True:
         try:
             resp = requests.get(url, params=(params if use_params else None), timeout=30)
-            if resp.status_code == 404:
-                print(f'    [Horizon] 404 for account {account[:12]}… — no operations indexed')
-                break
             resp.raise_for_status()
         except requests.RequestException as e:
-            print(f'    [Horizon] error page {page}: {e}')
+            print(f'    [stellar.expert] error page {page}: {e}')
             break
 
         data    = resp.json()
         records = data.get('_embedded', {}).get('records', [])
-        all_ops.extend(records)
+        all_events.extend(records)
         if records:
-            last_op_id = records[-1]['id']
-        print(f'    Page {page}: {len(records)} ops (total: {len(all_ops)})')
+            last_token = records[-1]['paging_token']
+        print(f'    Page {page}: {len(records)} events (total: {len(all_events)})')
 
         next_href = data.get('_links', {}).get('next', {}).get('href')
         if not next_href or not records:
             break
 
-        url        = next_href
+        url        = f"{EXPERT_BASE}{next_href}"
         use_params = False
         page      += 1
         time.sleep(0.15)
 
-    return all_ops, last_op_id
+    return all_events, last_token
 
 
-# ── Supply reconstruction from operations ──────────────────────────────────────
+# ── Balance & supply reconstruction ───────────────────────────────────────────
 
-def process_supply_from_ops(ops):
+def apply_events_to_balances(events, balances):
     """
-    Reconstruct daily supply deltas from Horizon operations.
-    Works for Soroban SAC tokens (asset_balance_changes) and classic payments.
-    For pure SEP-41 tokens without asset_balance_changes, returns empty dict.
+    Apply contract events to a balance map {address: raw_int}.
+    SEP-41 event types:
+      transfer(from, to, amount)  → topics[0]='transfer', [1]=from, [2]=to
+      mint(admin, to, amount)     → topics[0]='mint',     [1]=admin,[2]=to
+      burn(from, amount)          → topics[0]='burn',     [1]=from
+      burn_from(spender,from,amt) → topics[0]='burn_from',[1]=spender,[2]=from
+      clawback(admin, from, amt)  → topics[0]='clawback', [1]=admin, [2]=from
     """
-    delta_by_date = defaultdict(float)
-
-    for op in ops:
-        op_type = op.get('type', '')
-        date    = iso_to_date(op.get('created_at', '') or '')
-        if not date:
+    for event in events:
+        topics = event.get('topics', [])
+        if not topics:
+            continue
+        etype  = topics[0]
+        amount = decode_amount(event.get('bodyXdr', ''))
+        if amount <= 0:
             continue
 
-        if op_type == 'payment':
-            # Classic Stellar payment — track if it looks like a mint/burn
-            # (src or dst is the contract itself, acting as issuer)
-            amount = float(op.get('amount', 0))
-            src    = op.get('from', '')
-            dst    = op.get('to', '')
-            # Mint: from contract; Burn: to contract
-            # We don't have a classic issuer here, so skip for now
-            pass
+        if etype == 'transfer' and len(topics) >= 3:
+            frm = topics[1]; to = topics[2]
+            balances[frm] = balances.get(frm, 0) - amount
+            balances[to]  = balances.get(to,  0) + amount
 
-        elif op_type == 'invoke_host_function':
-            # Soroban invocation — Horizon may decode asset_balance_changes
-            changes = op.get('asset_balance_changes') or []
-            for change in changes:
-                ctype  = change.get('type', '')
-                amount = float(change.get('amount', 0))
-                if ctype == 'mint':
-                    delta_by_date[date] += amount
-                elif ctype in ('burn', 'clawback'):
-                    delta_by_date[date] -= amount
+        elif etype == 'mint' and len(topics) >= 3:
+            to = topics[2]
+            balances[to] = balances.get(to, 0) + amount
 
-        elif op_type == 'clawback':
-            delta_by_date[date] -= float(op.get('amount', 0))
+        elif etype == 'burn' and len(topics) >= 2:
+            frm = topics[1]
+            balances[frm] = balances.get(frm, 0) - amount
 
-    return delta_by_date
+        elif etype == 'burn_from' and len(topics) >= 3:
+            frm = topics[2]
+            balances[frm] = balances.get(frm, 0) - amount
+
+        elif etype == 'clawback' and len(topics) >= 3:
+            frm = topics[2]
+            balances[frm] = balances.get(frm, 0) - amount
 
 
-def build_supply_history(delta_by_date, initial_cumulative=0.0):
-    history    = []
-    cumulative = initial_cumulative
-    for date in sorted(delta_by_date.keys()):
-        cumulative += delta_by_date[date]
-        history.append({'date': date, 'supply': round(max(0.0, cumulative), 7)})
-    return history, cumulative
+def build_daily_snapshots(events, balances):
+    """
+    Apply events chronologically, grouped by date, and emit daily supply/holders.
+    """
+    events_by_date = defaultdict(list)
+    for event in events:
+        ts   = event.get('ts', 0)
+        date = datetime.fromtimestamp(ts, tz=timezone.utc).strftime('%Y-%m-%d')
+        events_by_date[date].append(event)
+
+    supply_history  = []
+    holders_history = []
+
+    for date in sorted(events_by_date.keys()):
+        apply_events_to_balances(events_by_date[date], balances)
+        supply  = sum(v for v in balances.values() if v > 0) / STELLAR_SCALE
+        holders = sum(1 for v in balances.values() if v > 0)
+        supply_history.append({'date': date, 'supply': round(supply, 7)})
+        holders_history.append({'date': date, 'holders': holders})
+
+    return supply_history, holders_history
 
 
 # ── FX rates & marketcap ───────────────────────────────────────────────────────
@@ -239,80 +229,54 @@ def process_token(token_id, contract_address, currency, today, fx_cache):
     existing_mcap    = load_json(mcap_file,    default=[])
     existing_holders = load_json(holders_file, default=[])
 
-    # ── 1. Current authoritative state from stellar.expert ────────────────────
-    print('  Fetching current state from stellar.expert...')
-    current_supply, current_holders = get_contract_current_state(contract_address)
-    time.sleep(0.2)
+    cursor   = state.get('last_paging_token')
+    balances = {k: int(v) for k, v in state.get('balances', {}).items()}
 
-    # Try dedicated holders endpoint for better accuracy
-    precise_holders = get_contract_holders(contract_address)
-    if precise_holders is not None:
-        current_holders = precise_holders
-    time.sleep(0.2)
+    print(f'  Fetching events from stellar.expert (cursor={cursor})…')
+    new_events, new_cursor = fetch_all_events(contract_address, cursor=cursor)
+    print(f'  {len(new_events)} new events')
 
-    print(f'  Current supply: {current_supply:,.2f}  holders: {current_holders}')
-
-    # ── 2. Historical supply from Horizon operations ──────────────────────────
-    cursor         = state.get('last_op_id')
-    supply_cumul   = float(state.get('supply_cumulative', 0.0))
-
-    print(f'  Fetching Horizon operations (cursor={cursor})...')
-    ops, new_cursor = get_account_operations_since(contract_address, cursor=cursor)
-    print(f'  {len(ops)} new operations')
-
-    if ops:
-        delta_by_date           = process_supply_from_ops(ops)
-        new_supply_hist, supply_cumul = build_supply_history(delta_by_date, supply_cumul)
-        print(f'  {len(new_supply_hist)} new supply days from operations')
-
-        if new_supply_hist:
-            first_new_date  = new_supply_hist[0]['date']
-            kept_mcap       = [pt for pt in existing_mcap if pt['date'] < first_new_date]
-            merged_raw      = [{'date': pt['date'], 'supply': pt['supply']} for pt in kept_mcap] + new_supply_hist
-        else:
-            merged_raw = [{'date': pt['date'], 'supply': pt['supply']} for pt in existing_mcap]
-    else:
-        # No operations indexed — use existing history
-        merged_raw = [{'date': pt['date'], 'supply': pt['supply']} for pt in existing_mcap]
-
-    # ── 3. Override / append today's authoritative snapshot ───────────────────
-    if current_supply > 0:
-        if merged_raw and merged_raw[-1]['date'] == today:
-            merged_raw[-1]['supply'] = current_supply
-        else:
-            merged_raw.append({'date': today, 'supply': current_supply})
-
-    if not merged_raw:
-        print('  No supply data available yet — skipping.')
+    if not new_events and not existing_mcap:
+        print('  No events and no existing data — skipping.')
         return
 
-    # ── 4. FX rates & marketcap ───────────────────────────────────────────────
+    if new_events:
+        first_new_date = datetime.fromtimestamp(
+            new_events[0].get('ts', 0), tz=timezone.utc
+        ).strftime('%Y-%m-%d')
+
+        new_supply, new_holders = build_daily_snapshots(new_events, balances)
+
+        kept_mcap    = [pt for pt in existing_mcap    if pt['date'] < first_new_date]
+        kept_holders = [pt for pt in existing_holders if pt['date'] < first_new_date]
+        merged_raw   = [{'date': pt['date'], 'supply': pt['supply']} for pt in kept_mcap] + new_supply
+        merged_hold  = kept_holders + new_holders
+    else:
+        merged_raw  = [{'date': pt['date'], 'supply': pt['supply']} for pt in existing_mcap]
+        merged_hold = list(existing_holders)
+
+    if not merged_raw:
+        print('  No supply data yet.')
+        return
+
+    # FX rates
     if currency not in fx_cache:
         start_date = merged_raw[0]['date']
         if currency == 'USD':
             fx_cache['USD'] = {}
         else:
-            print(f'  Fetching {currency}/USD rates from {start_date}...')
+            print(f'  Fetching {currency}/USD rates from {start_date}…')
             fx_cache[currency] = fetch_fx_rates_for_currency(currency, start_date)
 
     mcap_history = compute_marketcap(merged_raw, currency, fx_cache.get(currency, {}))
 
-    # ── 5. Holders history ────────────────────────────────────────────────────
-    merged_holders = [pt for pt in existing_holders]
-    if merged_holders and merged_holders[-1]['date'] == today:
-        merged_holders[-1]['holders'] = current_holders
-    else:
-        merged_holders.append({'date': today, 'holders': current_holders})
-
-    # ── 6. Save ───────────────────────────────────────────────────────────────
-    new_state = {
-        'last_op_id':         new_cursor or cursor,
-        'supply_cumulative':  supply_cumul,
-    }
-    save_json(state_file,   new_state)
+    save_json(state_file, {
+        'last_paging_token': new_cursor or cursor,
+        'balances':          {k: str(v) for k, v in balances.items()},
+    })
     save_json(mcap_file,    mcap_history)
-    save_json(holders_file, merged_holders)
-    print(f'  Saved: {len(mcap_history)} mcap pts, {len(merged_holders)} holder pts')
+    save_json(holders_file, merged_hold)
+    print(f'  Saved: {len(mcap_history)} mcap pts, {len(merged_hold)} holder pts')
 
 
 # ── Main ───────────────────────────────────────────────────────────────────────
@@ -320,7 +284,7 @@ def process_token(token_id, contract_address, currency, today, fx_cache):
 def main():
     os.makedirs('data', exist_ok=True)
     today    = datetime.now(timezone.utc).strftime('%Y-%m-%d')
-    fx_cache = {}  # currency → {date: usd_rate}
+    fx_cache = {}
 
     print(f'=== Fetching Spiko Stellar data — {today} ===')
 
