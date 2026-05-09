@@ -944,7 +944,10 @@
           </div>`;
         }).join('');
 
-        const rateFooter = '';
+        const rate = getRateForDate(isoDate);
+        const rateFooter = (rate && isoDate)
+          ? `<div class="tt-rate">1 € = ${rate.toFixed(4)} $</div>`
+          : '';
 
         el.innerHTML = `
           <div class="tt-header">
@@ -1447,7 +1450,7 @@
         d.chart.data.labels = stacked.labels;
         d.chart.options.scales.y.ticks.callback = d.fmtAxis;
         d.chart.options.plugins.tooltip.external = makeTooltipHandler(
-          d.fmtVal, stacked.paired, null, stacked.rawDates
+          d.fmtVal, stacked.paired, isMcap && displayCurrency === 'EUR' ? fxRatesData['EUR'] : null, stacked.rawDates
         );
         d.chart.update();
         syncModeButtons(id, d.mode);
@@ -1458,7 +1461,8 @@
       const wrap = document.getElementById(canvasId).parentElement;
       wrap.innerHTML = `<canvas id="${canvasId}"></canvas>`;
       if (d.mode === 'line') {
-        d.chart = buildLineChart(canvasId, buildStacked(d.chains, d.seriesArr, 'value', transformFn), d.fmtVal, d.fmtAxis);
+        d.chart = buildLineChart(canvasId, buildStacked(d.chains, d.seriesArr, 'value', transformFn), d.fmtVal, d.fmtAxis,
+          isMcap && displayCurrency === 'EUR' ? fxRatesData['EUR'] : null);
       } else {
         d.chart = buildPieChart(canvasId, d.seriesArr, d.chains, 'value', d.fmtVal, transformFn);
       }
@@ -1567,7 +1571,8 @@
         const wrap = canvas.parentElement;
         wrap.innerHTML = `<canvas id="${canvasId}"></canvas>`;
         if (s.mcapMode === 'line') {
-          s.mcapChart = buildLineChart(canvasId, buildStacked(chains, s.mcapData, 'marketcap', getMcapTransformFn()), fmtMcapVal, fmtAxisMcap);
+          s.mcapChart = buildLineChart(canvasId, buildStacked(chains, s.mcapData, 'marketcap', getMcapTransformFn()), fmtMcapVal, fmtAxisMcap,
+            displayCurrency === 'EUR' ? fxRatesData['EUR'] : null);
         } else {
           s.mcapChart = buildPieChart(canvasId, s.mcapData, chains, 'marketcap', fmtMcapVal, getMcapTransformFn());
         }
