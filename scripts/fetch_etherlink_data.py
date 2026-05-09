@@ -24,7 +24,7 @@ LOOKBACK_BLOCKS = 5000
 TOKENS = {
     'eutbl':   ('0xa0769f7a8fc65e47de93797b4e21c073c117fc80', 'EUR'),
     'ustbl':   ('0xe4880249745eac5f1ed9d8f7df844792d560e750', 'USD'),
-    'uktbl':   ('0xa8de1f55aa0e381cb456e1dcc9ff781ea0079068', 'GBP'),
+    'uktbl':   ('0x970e2adc2fdf53aea6b5fa73ca6dc30eafedfe3d', 'GBP'),
     'safo':    ('0x0bb754d8940e283d9ff6855ab5dafbc14165c059', 'USD'),
     'eursafo': ('0xd879846cbe20751bde8a9342a3cca00a3e56ca47', 'EUR'),
     'gbpsafo': ('0x2f6c0e5e06b43512706a9cdf66cd21f723fe0ec3', 'GBP'),
