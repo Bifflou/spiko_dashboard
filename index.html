@@ -668,6 +668,7 @@
         <option value="USD">$ USD</option>
         <option value="EUR">€ EUR</option>
         <option value="GBP">£ GBP</option>
+        <option value="CHF">₣ CHF</option>
       </select>
       <div class="toggle-wrap">
         <button class="toggle-btn" id="btn-light" onclick="setTheme('light')">☀ Jour</button>
@@ -851,6 +852,13 @@
       if (v >= 1e3) return '£' + (v / 1e3).toFixed(0) + 'K';
       return '£' + v;
     }
+    function fmtCHF(v)  { return 'CHF ' + fmtSpaced(v); }
+    function fmtAxisCHF(v) {
+      if (v >= 1e9) return 'CHF' + (v / 1e9).toFixed(1) + 'B';
+      if (v >= 1e6) return 'CHF' + (v / 1e6).toFixed(0) + 'M';
+      if (v >= 1e3) return 'CHF' + (v / 1e3).toFixed(0) + 'K';
+      return 'CHF' + v;
+    }
 
     // ── Currency toggle ─────────────────────────────────────────────────────────
     let fxRatesData    = {};
@@ -881,11 +889,13 @@
     function fmtMcapVal(v) {
       if (displayCurrency === 'EUR') return fmtEUR(v);
       if (displayCurrency === 'GBP') return fmtGBP(v);
+      if (displayCurrency === 'CHF') return fmtCHF(v);
       return fmtUSD(v);
     }
     function fmtAxisMcap(v) {
       if (displayCurrency === 'EUR') return fmtAxisEUR(v);
       if (displayCurrency === 'GBP') return fmtAxisGBP(v);
+      if (displayCurrency === 'CHF') return fmtAxisCHF(v);
       return fmtAxisUSD(v);
     }
 
@@ -986,20 +996,26 @@
         if (rates && isoDate) {
           const rEUR = getLastFxRate('EUR', isoDate);
           const rGBP = getLastFxRate('GBP', isoDate);
-          if (displayCurrency === 'EUR') {
+          const rCHF = getLastFxRate('CHF', isoDate);
+          const FX = { EUR: rEUR, GBP: rGBP, CHF: rCHF };
+          const SYM = { EUR: '€', GBP: '£', CHF: 'CHF', USD: '$' };
+          const OTHERS = ['EUR', 'GBP', 'CHF'].filter(c => c !== displayCurrency);
+
+          if (displayCurrency !== 'USD') {
+            const r = FX[displayCurrency];
             const parts = [];
-            if (rEUR) parts.push(`1 € = ${rEUR.toFixed(4)} $`);
-            if (rEUR && rGBP) parts.push(`1 € = ${(rEUR / rGBP).toFixed(4)} £`);
-            if (parts.length) rateFooter = `<div class="tt-rate">${parts.join('  ·  ')}</div>`;
-          } else if (displayCurrency === 'GBP') {
-            const parts = [];
-            if (rGBP) parts.push(`1 £ = ${rGBP.toFixed(4)} $`);
-            if (rEUR && rGBP) parts.push(`1 £ = ${(rGBP / rEUR).toFixed(4)} €`);
+            if (r) parts.push(`1 ${SYM[displayCurrency]} = ${r.toFixed(4)} $`);
+            OTHERS.forEach(c => {
+              const rO = FX[c];
+              if (r && rO) parts.push(`1 ${SYM[displayCurrency]} = ${(r / rO).toFixed(4)} ${SYM[c]}`);
+            });
             if (parts.length) rateFooter = `<div class="tt-rate">${parts.join('  ·  ')}</div>`;
           } else {
             const parts = [];
-            if (rEUR) parts.push(`1 $ = ${(1 / rEUR).toFixed(4)} €`);
-            if (rGBP) parts.push(`1 $ = ${(1 / rGBP).toFixed(4)} £`);
+            ['EUR', 'GBP', 'CHF'].forEach(c => {
+              const r = FX[c];
+              if (r) parts.push(`1 $ = ${(1 / r).toFixed(4)} ${SYM[c]}`);
+            });
             if (parts.length) rateFooter = `<div class="tt-rate">${parts.join('  ·  ')}</div>`;
           }
         }
@@ -1378,7 +1394,7 @@
       const chainHoldersArr = Object.entries(chainTotals).map(([label, v]) => ({ label, color: v.color, value: v.holders })).sort((a, b) => b.value - a.value);
 
       // ── Apply currency conversion for display ─────────────────────────────
-      const sym          = displayCurrency === 'EUR' ? '€' : displayCurrency === 'GBP' ? '£' : '$';
+      const sym          = displayCurrency === 'EUR' ? '€' : displayCurrency === 'GBP' ? '£' : displayCurrency === 'CHF' ? 'CHF' : '$';
       const dispGrand    = convertMcapToDisplay(grandMcap);
       const dispTokens   = tokenTotals.map(t => ({ ...t, mcap: convertMcapToDisplay(t.mcap) }));
       const dispChains   = chainMcapArr.map(c => ({ ...c, value: convertMcapToDisplay(c.value) }));
@@ -1874,7 +1890,7 @@
                                          : (va > vb ? -1 : va < vb ? 1 : 0);
       });
 
-      const mcapSym = displayCurrency === 'EUR' ? '€' : displayCurrency === 'GBP' ? '£' : '$';
+      const mcapSym = displayCurrency === 'EUR' ? '€' : displayCurrency === 'GBP' ? '£' : displayCurrency === 'CHF' ? 'CHF' : '$';
       const tbody = document.getElementById('tracker-tbody');
       tbody.innerHTML = '';
 
