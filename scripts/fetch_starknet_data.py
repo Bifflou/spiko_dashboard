@@ -17,7 +17,11 @@ import time
 from collections import defaultdict
 from datetime import datetime, timezone
 
-RPC_URL    = "https://starknet-mainnet.public.blastapi.io"
+RPC_URLS = [
+    "https://starknet.drpc.org",
+    "https://rpc.starknet.lava.build",
+    "https://free-rpc.nethermind.io/mainnet-juno/",
+]
 CHAIN_NAME = "starknet"
 CHUNK_SIZE = 1000
 
@@ -59,15 +63,21 @@ _rpc_id = 0
 def rpc(method, params):
     global _rpc_id
     _rpc_id += 1
-    resp = requests.post(RPC_URL, json={
-        'jsonrpc': '2.0', 'id': _rpc_id,
-        'method': method, 'params': params,
-    }, timeout=30)
-    resp.raise_for_status()
-    result = resp.json()
-    if 'error' in result:
-        raise RuntimeError(f"RPC error ({method}): {result['error']}")
-    return result['result']
+    payload = {'jsonrpc': '2.0', 'id': _rpc_id, 'method': method, 'params': params}
+    last_err = None
+    for url in RPC_URLS:
+        try:
+            resp = requests.post(url, json=payload, timeout=30)
+            resp.raise_for_status()
+            result = resp.json()
+            if 'error' in result:
+                raise RuntimeError(f"RPC error ({method}): {result['error']}")
+            return result['result']
+        except Exception as e:
+            last_err = e
+            time.sleep(0.5)
+            continue
+    raise RuntimeError(f"All RPC endpoints failed for {method}: {last_err}")
 
 
 def normalize_felt(felt_str):
