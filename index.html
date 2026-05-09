@@ -852,12 +852,12 @@
       if (v >= 1e3) return '£' + (v / 1e3).toFixed(0) + 'K';
       return '£' + v;
     }
-    function fmtCHF(v)  { return 'CHF ' + fmtSpaced(v); }
+    function fmtCHF(v)  { return '₣ ' + fmtSpaced(v); }
     function fmtAxisCHF(v) {
-      if (v >= 1e9) return 'CHF' + (v / 1e9).toFixed(1) + 'B';
-      if (v >= 1e6) return 'CHF' + (v / 1e6).toFixed(0) + 'M';
-      if (v >= 1e3) return 'CHF' + (v / 1e3).toFixed(0) + 'K';
-      return 'CHF' + v;
+      if (v >= 1e9) return '₣' + (v / 1e9).toFixed(1) + 'B';
+      if (v >= 1e6) return '₣' + (v / 1e6).toFixed(0) + 'M';
+      if (v >= 1e3) return '₣' + (v / 1e3).toFixed(0) + 'K';
+      return '₣' + v;
     }
 
     // ── Currency toggle ─────────────────────────────────────────────────────────
@@ -998,7 +998,7 @@
           const rGBP = getLastFxRate('GBP', isoDate);
           const rCHF = getLastFxRate('CHF', isoDate);
           const FX = { EUR: rEUR, GBP: rGBP, CHF: rCHF };
-          const SYM = { EUR: '€', GBP: '£', CHF: 'CHF', USD: '$' };
+          const SYM = { EUR: '€', GBP: '£', CHF: '₣', USD: '$' };
           const OTHERS = ['EUR', 'GBP', 'CHF'].filter(c => c !== displayCurrency);
 
           if (displayCurrency !== 'USD') {
@@ -1394,7 +1394,7 @@
       const chainHoldersArr = Object.entries(chainTotals).map(([label, v]) => ({ label, color: v.color, value: v.holders })).sort((a, b) => b.value - a.value);
 
       // ── Apply currency conversion for display ─────────────────────────────
-      const sym          = displayCurrency === 'EUR' ? '€' : displayCurrency === 'GBP' ? '£' : displayCurrency === 'CHF' ? 'CHF' : '$';
+      const sym          = displayCurrency === 'EUR' ? '€' : displayCurrency === 'GBP' ? '£' : displayCurrency === 'CHF' ? '₣' : '$';
       const dispGrand    = convertMcapToDisplay(grandMcap);
       const dispTokens   = tokenTotals.map(t => ({ ...t, mcap: convertMcapToDisplay(t.mcap) }));
       const dispChains   = chainMcapArr.map(c => ({ ...c, value: convertMcapToDisplay(c.value) }));
@@ -1890,7 +1890,7 @@
                                          : (va > vb ? -1 : va < vb ? 1 : 0);
       });
 
-      const mcapSym = displayCurrency === 'EUR' ? '€' : displayCurrency === 'GBP' ? '£' : displayCurrency === 'CHF' ? 'CHF' : '$';
+      const mcapSym = displayCurrency === 'EUR' ? '€' : displayCurrency === 'GBP' ? '£' : displayCurrency === 'CHF' ? '₣' : '$';
       const tbody = document.getElementById('tracker-tbody');
       tbody.innerHTML = '';
 
