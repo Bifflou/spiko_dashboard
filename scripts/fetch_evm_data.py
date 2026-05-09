@@ -17,15 +17,18 @@ from datetime import datetime, timezone
 from collections import defaultdict
 
 ETHERSCAN_API_KEY = os.environ.get("ETHERSCAN_API_KEY")
-ETHERSCAN_URL     = "https://api.etherscan.io/v2/api"
+ETHERSCAN_V2_URL  = "https://api.etherscan.io/v2/api"
 TRANSFER_TOPIC    = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
 ZERO_ADDRESS      = "0x0000000000000000000000000000000000000000"
 LOOKBACK_BLOCKS   = 1000  # safety overlap (~3 h on Ethereum, proportionally less on faster chains)
 
 # (address, native_currency)
+# api_base=None → Etherscan v2 (requires ETHERSCAN_API_KEY)
+# api_base=URL  → Blockscout-compatible (no key needed)
 CHAIN_CONFIGS = {
     'eth': {
         'chain_id': 1,
+        'api_base': None,
         'tokens': {
             'eutbl':    ('0xa0769f7a8fc65e47de93797b4e21c073c117fc80', 'EUR'),
             'ustbl':    ('0xe4880249745eac5f1ed9d8f7df844792d560e750', 'USD'),
@@ -40,6 +43,7 @@ CHAIN_CONFIGS = {
     },
     'polygon': {
         'chain_id': 137,
+        'api_base': None,
         'tokens': {
             'eutbl':    ('0xa0769f7a8fc65e47de93797b4e21c073c117fc80', 'EUR'),
             'ustbl':    ('0xe4880249745eac5f1ed9d8f7df844792d560e750', 'USD'),
@@ -54,6 +58,7 @@ CHAIN_CONFIGS = {
     },
     'base': {
         'chain_id': 8453,
+        'api_base': 'https://base.blockscout.com/api',
         'tokens': {
             'eutbl':    ('0xa0769f7a8fc65e47de93797b4e21c073c117fc80', 'EUR'),
             'ustbl':    ('0xe4880249745eac5f1ed9d8f7df844792d560e750', 'USD'),
@@ -68,6 +73,7 @@ CHAIN_CONFIGS = {
     },
     'arb': {
         'chain_id': 42161,
+        'api_base': None,
         'tokens': {
             'eutbl':    ('0xcbeb19549054cc0a6257a77736fc78c367216ce7', 'EUR'),
             'ustbl':    ('0x021289588cd81dc1ac87ea91e91607eef68303f5', 'USD'),
@@ -96,17 +102,24 @@ def save_json(path, data):
         json.dump(data, f)
 
 
-# ── Etherscan v2 helpers ───────────────────────────────────────────────────────
+# ── Explorer API helpers ───────────────────────────────────────────────────────
 
-def etherscan_get(chain_id, params):
-    params['chainid'] = chain_id
-    params['apikey']  = ETHERSCAN_API_KEY
-    resp = requests.get(ETHERSCAN_URL, params=params, timeout=30)
+def explorer_get(cfg, params):
+    """Unified call: Etherscan v2 (api_base=None) or Blockscout (api_base=URL)."""
+    api_base = cfg.get('api_base')
+    if api_base is None:
+        url    = ETHERSCAN_V2_URL
+        params = dict(params)
+        params['chainid'] = cfg['chain_id']
+        params['apikey']  = ETHERSCAN_API_KEY
+    else:
+        url = api_base
+    resp = requests.get(url, params=params, timeout=30)
     resp.raise_for_status()
     return resp.json()
 
-def get_token_decimals(chain_id, token_address):
-    data = etherscan_get(chain_id, {
+def get_token_decimals(cfg, token_address):
+    data = explorer_get(cfg, {
         'module': 'proxy', 'action': 'eth_call',
         'to': token_address, 'data': '0x313ce567', 'tag': 'latest',
     })
@@ -115,7 +128,7 @@ def get_token_decimals(chain_id, token_address):
 
 # ── Log fetching ───────────────────────────────────────────────────────────────
 
-def fetch_transfer_logs(chain_id, token_address, from_block):
+def fetch_transfer_logs(cfg, token_address, from_block):
     all_logs = []
     seen     = set()
     current_from = from_block
@@ -125,7 +138,7 @@ def fetch_transfer_logs(chain_id, token_address, from_block):
         last_block_in_batch = None
 
         while True:
-            data = etherscan_get(chain_id, {
+            data = explorer_get(cfg, {
                 'module': 'logs', 'action': 'getLogs',
                 'address': token_address, 'topic0': TRANSFER_TOPIC,
                 'fromBlock': current_from, 'toBlock': 'latest',
@@ -223,7 +236,7 @@ def compute_marketcap(supply_history, currency, fx_rates_for_currency):
 
 # ── Per-token processing ───────────────────────────────────────────────────────
 
-def process_token(chain_id, chain_name, token_id, token_address, currency, fx_cache):
+def process_token(cfg, chain_name, token_id, token_address, currency, fx_cache):
     state_file   = f'data/{token_id}_{chain_name}_state.json'
     mcap_file    = f'data/{token_id}_{chain_name}_marketcap.json'
     holders_file = f'data/{token_id}_{chain_name}_holders.json'
@@ -232,7 +245,7 @@ def process_token(chain_id, chain_name, token_id, token_address, currency, fx_ca
     existing_mcap    = load_json(mcap_file,    default=[])
     existing_holders = load_json(holders_file, default=[])
 
-    decimals = get_token_decimals(chain_id, token_address)
+    decimals = get_token_decimals(cfg, token_address)
     print(f'    Decimals: {decimals}')
 
     if state.get('last_block') and existing_mcap:
@@ -241,7 +254,7 @@ def process_token(chain_id, chain_name, token_id, token_address, currency, fx_ca
         from_block = max(0, last_block - LOOKBACK_BLOCKS)
         print(f'    Incremental from block {from_block} (last known: {last_block})')
 
-        fetched_logs   = fetch_transfer_logs(chain_id, token_address, from_block)
+        fetched_logs   = fetch_transfer_logs(cfg, token_address, from_block)
         overlap_logs   = [l for l in fetched_logs if int(l['blockNumber'], 16) <= last_block]
         truly_new_logs = [l for l in fetched_logs if int(l['blockNumber'], 16) >  last_block]
         print(f'    {len(overlap_logs)} overlap, {len(truly_new_logs)} truly new')
@@ -264,7 +277,7 @@ def process_token(chain_id, chain_name, token_id, token_address, currency, fx_ca
     else:
         print(f'    Full fetch from genesis...')
         balances     = {}
-        fetched_logs = fetch_transfer_logs(chain_id, token_address, 0)
+        fetched_logs = fetch_transfer_logs(cfg, token_address, 0)
         print(f'    Total: {len(fetched_logs)} Transfer events')
 
         if not fetched_logs:
@@ -310,10 +323,9 @@ def main():
 
     chain_name = sys.argv[1]
     cfg        = CHAIN_CONFIGS[chain_name]
-    chain_id   = cfg['chain_id']
     tokens     = cfg['tokens']
 
-    print(f'=== Fetching Spiko data — {chain_name.upper()} (chain_id={chain_id}) ===')
+    print(f'=== Fetching Spiko data — {chain_name.upper()} (chain_id={cfg["chain_id"]}) ===')
     os.makedirs('data', exist_ok=True)
 
     fx_cache = {}  # currency → {date: usd_rate}, populated lazily per token
@@ -321,7 +333,7 @@ def main():
     for token_id, (token_address, currency) in tokens.items():
         print(f'\n[{token_id.upper()} on {chain_name.upper()}]')
         try:
-            process_token(chain_id, chain_name, token_id, token_address, currency, fx_cache)
+            process_token(cfg, chain_name, token_id, token_address, currency, fx_cache)
         except Exception as e:
             print(f'  ERROR processing {token_id}: {e}')
         time.sleep(0.5)

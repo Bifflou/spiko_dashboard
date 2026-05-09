@@ -1,7 +1,6 @@
 """
 Fetch supply & holder history for Spiko tokens on Etherlink (tezos L2).
-Etherlink is EVM-compatible but has no Etherscan-equivalent API, so we
-use direct JSON-RPC calls to the public endpoint + eth_getLogs pagination.
+Uses the Etherlink Blockscout explorer API (Etherscan-compatible, no API key).
 
 Tokens on Etherlink: EUTBL, USTBL, UKTBL, SAFO, EURSAFO, GBPSAFO, CHFSAFO
 SPKCC and EURSPKCC are NOT deployed on Etherlink.
@@ -16,12 +15,11 @@ import time
 from collections import defaultdict
 from datetime import datetime, timezone
 
-RPC_URL       = "https://node.mainnet.etherlink.com"
-CHAIN_NAME    = "etherlink"
+BLOCKSCOUT_URL = "https://explorer.etherlink.com/api"
+CHAIN_NAME     = "etherlink"
 TRANSFER_TOPIC = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
-ZERO_ADDRESS  = "0x0000000000000000000000000000000000000000"
-LOOKBACK_BLOCKS = 1000   # ~50 min on Etherlink (~3 s/block)
-BATCH_SIZE    = 2000     # blocks per eth_getLogs request
+ZERO_ADDRESS   = "0x0000000000000000000000000000000000000000"
+LOOKBACK_BLOCKS = 5000
 
 TOKENS = {
     'eutbl':   ('0xa0769f7a8fc65e47de93797b4e21c073c117fc80', 'EUR'),
@@ -47,72 +45,73 @@ def save_json(path, data):
         json.dump(data, f)
 
 
-# ── JSON-RPC helpers ───────────────────────────────────────────────────────────
+# ── Blockscout API helpers ─────────────────────────────────────────────────────
 
-_rpc_id = 0
-
-def rpc(method, params):
-    global _rpc_id
-    _rpc_id += 1
-    resp = requests.post(RPC_URL, json={
-        'jsonrpc': '2.0', 'id': _rpc_id,
-        'method': method, 'params': params,
-    }, timeout=30)
+def blockscout_get(params):
+    resp = requests.get(BLOCKSCOUT_URL, params=params, timeout=30)
     resp.raise_for_status()
-    result = resp.json()
-    if 'error' in result:
-        raise RuntimeError(f"RPC error: {result['error']}")
-    return result['result']
-
-
-def get_latest_block():
-    return int(rpc('eth_blockNumber', []), 16)
-
-
-def get_block_timestamp(block_hex):
-    blk = rpc('eth_getBlockByNumber', [block_hex, False])
-    return int(blk['timestamp'], 16) if blk else None
-
+    return resp.json()
 
 def get_token_decimals(token_address):
-    result = rpc('eth_call', [{'to': token_address, 'data': '0x313ce567'}, 'latest'])
-    return int(result, 16) if result and result != '0x' else 18
+    data = blockscout_get({
+        'module': 'proxy', 'action': 'eth_call',
+        'to': token_address, 'data': '0x313ce567', 'tag': 'latest',
+    })
+    return int(data.get('result', '0x12'), 16)
 
 
-def fetch_logs_range(token_address, from_block, to_block):
-    """Fetch Transfer logs for a block range, with BATCH_SIZE pagination."""
+# ── Log fetching ───────────────────────────────────────────────────────────────
+
+def fetch_transfer_logs(token_address, from_block):
     all_logs = []
-    current  = from_block
-    while current <= to_block:
-        end = min(current + BATCH_SIZE - 1, to_block)
-        logs = rpc('eth_getLogs', [{
-            'address':   token_address,
-            'topics':    [TRANSFER_TOPIC],
-            'fromBlock': hex(current),
-            'toBlock':   hex(end),
-        }])
-        all_logs.extend(logs or [])
-        print(f"    Blocks {current}–{end}: {len(logs or [])} logs (total: {len(all_logs)})")
-        current = end + 1
-        time.sleep(0.15)
+    seen     = set()
+    current_from = from_block
+
+    while True:
+        page = 1
+        last_block_in_batch = None
+
+        while True:
+            data = blockscout_get({
+                'module': 'logs', 'action': 'getLogs',
+                'address': token_address, 'topic0': TRANSFER_TOPIC,
+                'fromBlock': current_from, 'toBlock': 'latest',
+                'page': page, 'offset': 1000,
+            })
+            if data['status'] != '1' or not data['result']:
+                return all_logs
+
+            logs = data['result']
+            new  = 0
+            for log in logs:
+                key = (log['transactionHash'], log['logIndex'])
+                if key not in seen:
+                    seen.add(key)
+                    all_logs.append(log)
+                    new += 1
+
+            last_block_in_batch = int(logs[-1]['blockNumber'], 16)
+            print(f"    Page {page} (from {current_from}): {new} new events (total: {len(all_logs)})")
+
+            if len(logs) < 1000:
+                return all_logs
+
+            page += 1
+            time.sleep(0.25)
+
+            if page > 10:
+                current_from = last_block_in_batch
+                break
+
     return all_logs
 
 
 # ── Supply & holders reconstruction ───────────────────────────────────────────
 
-def build_daily_snapshots(logs, balances, decimals, block_ts_cache):
-    """
-    Apply Transfer events to `balances`, group by date, emit daily snapshots.
-    block_ts_cache: {block_hex: timestamp_int} — populated lazily.
-    """
+def build_daily_snapshots(logs, balances, decimals):
     events_by_date = defaultdict(list)
     for log in logs:
-        block_hex = log['blockNumber']
-        if block_hex not in block_ts_cache:
-            ts = get_block_timestamp(block_hex)
-            block_ts_cache[block_hex] = ts
-            time.sleep(0.05)
-        ts   = block_ts_cache[block_hex]
+        ts   = int(log['timeStamp'], 16)
         date = datetime.fromtimestamp(ts, tz=timezone.utc).strftime('%Y-%m-%d')
         events_by_date[date].append(log)
 
@@ -183,18 +182,13 @@ def process_token(token_id, token_address, currency, fx_cache):
     decimals = get_token_decimals(token_address)
     print(f'  Decimals: {decimals}')
 
-    latest_block = get_latest_block()
-    print(f'  Latest block: {latest_block}')
-
-    block_ts_cache = {}
-
     if state.get('last_block') and existing_mcap:
         last_block = int(state['last_block'])
         balances   = {k: int(v) for k, v in state.get('balances', {}).items()}
         from_block = max(0, last_block - LOOKBACK_BLOCKS)
         print(f'  Incremental from block {from_block} (last known: {last_block})')
 
-        fetched_logs   = fetch_logs_range(token_address, from_block, latest_block)
+        fetched_logs   = fetch_transfer_logs(token_address, from_block)
         overlap_logs   = [l for l in fetched_logs if int(l['blockNumber'], 16) <= last_block]
         truly_new_logs = [l for l in fetched_logs if int(l['blockNumber'], 16) >  last_block]
         print(f'  {len(overlap_logs)} overlap, {len(truly_new_logs)} truly new')
@@ -203,29 +197,29 @@ def process_token(token_id, token_address, currency, fx_cache):
             print('  No new logs — skipping.')
             return
 
-        first_new_ts   = block_ts_cache.get(truly_new_logs[0]['blockNumber'])
-        if first_new_ts is None:
-            first_new_ts = get_block_timestamp(truly_new_logs[0]['blockNumber'])
+        first_new_ts   = int(truly_new_logs[0]['timeStamp'], 16)
         first_new_date = datetime.fromtimestamp(first_new_ts, tz=timezone.utc).strftime('%Y-%m-%d')
 
-        new_supply, new_holders = build_daily_snapshots(truly_new_logs, balances, decimals, block_ts_cache)
+        new_supply, new_holders = build_daily_snapshots(truly_new_logs, balances, decimals)
 
         kept_mcap    = [pt for pt in existing_mcap    if pt['date'] < first_new_date]
         kept_holders = [pt for pt in existing_holders if pt['date'] < first_new_date]
         merged_raw   = [{'date': pt['date'], 'supply': pt['supply']} for pt in kept_mcap] + new_supply
         merged_hold  = kept_holders + new_holders
+        new_last_block = max(int(l['blockNumber'], 16) for l in fetched_logs)
 
     else:
         print('  Full fetch from genesis...')
         balances     = {}
-        fetched_logs = fetch_logs_range(token_address, 0, latest_block)
+        fetched_logs = fetch_transfer_logs(token_address, 0)
         print(f'  Total: {len(fetched_logs)} Transfer events')
 
         if not fetched_logs:
             print('  No events found — token may not be active on Etherlink yet.')
             return
 
-        merged_raw, merged_hold = build_daily_snapshots(fetched_logs, balances, decimals, block_ts_cache)
+        merged_raw, merged_hold = build_daily_snapshots(fetched_logs, balances, decimals)
+        new_last_block = max(int(l['blockNumber'], 16) for l in fetched_logs)
 
     if not merged_raw:
         print('  No supply data.')
@@ -239,8 +233,7 @@ def process_token(token_id, token_address, currency, fx_cache):
             print(f'  Fetching {currency}/USD rates from {start_date}...')
             fx_cache[currency] = fetch_fx_rates_for_currency(currency, start_date)
 
-    mcap_history   = compute_marketcap(merged_raw, currency, fx_cache.get(currency, {}))
-    new_last_block = latest_block
+    mcap_history = compute_marketcap(merged_raw, currency, fx_cache.get(currency, {}))
 
     save_json(state_file, {
         'last_block': new_last_block,
@@ -255,7 +248,7 @@ def process_token(token_id, token_address, currency, fx_cache):
 
 def main():
     os.makedirs('data', exist_ok=True)
-    print(f'=== Fetching Spiko Etherlink data ===')
+    print('=== Fetching Spiko Etherlink data ===')
 
     fx_cache = {}
 

@@ -17,7 +17,7 @@ import time
 from collections import defaultdict
 from datetime import datetime, timezone
 
-RPC_URL    = "https://free-rpc.nethermind.io/mainnet-juno/"
+RPC_URL    = "https://starknet-mainnet.public.blastapi.io"
 CHAIN_NAME = "starknet"
 CHUNK_SIZE = 1000
 
