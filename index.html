@@ -1374,7 +1374,7 @@
       const chainHoldersArr = Object.entries(chainTotals).map(([label, v]) => ({ label, color: v.color, value: v.holders })).sort((a, b) => b.value - a.value);
 
       // ── Apply currency conversion for display ─────────────────────────────
-      const sym          = displayCurrency === 'EUR' ? '€' : '$';
+      const sym          = displayCurrency === 'EUR' ? '€' : displayCurrency === 'GBP' ? '£' : '$';
       const dispGrand    = convertMcapToDisplay(grandMcap);
       const dispTokens   = tokenTotals.map(t => ({ ...t, mcap: convertMcapToDisplay(t.mcap) }));
       const dispChains   = chainMcapArr.map(c => ({ ...c, value: convertMcapToDisplay(c.value) }));
@@ -1870,7 +1870,7 @@
                                          : (va > vb ? -1 : va < vb ? 1 : 0);
       });
 
-      const mcapSym = displayCurrency === 'EUR' ? '€' : '$';
+      const mcapSym = displayCurrency === 'EUR' ? '€' : displayCurrency === 'GBP' ? '£' : '$';
       const tbody = document.getElementById('tracker-tbody');
       tbody.innerHTML = '';
 
