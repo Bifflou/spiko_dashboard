@@ -86,7 +86,7 @@ def fetch_all_events(contract_address, cursor=None):
     all_events     = []
     last_token     = cursor
     url            = f"{EXPERT_BASE}/explorer/public/contract/{contract_address}/events"
-    params         = {'order': 'asc', 'limit': 200}
+    params         = {'order': 'asc', 'limit': 1000}
     if cursor:
         params['cursor'] = cursor
 
