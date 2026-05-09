@@ -286,19 +286,20 @@ def process_token(token_id, contract_address, currency, fx_cache, block_ts_cache
     decimals = get_token_decimals(contract_address)
     print(f'  Decimals: {decimals}')
 
-    if state.get('continuation_token') is not None and existing_mcap:
-        # Incremental: resume from where we left off using the continuation token
-        saved_token = state['continuation_token']  # may be None (exhausted)
+    has_state = existing_mcap and state.get('last_block') is not None
+    if has_state:
+        # Incremental: state file exists with last_block — fetch only new events
+        saved_token = state.get('continuation_token')  # None = pagination exhausted
         balances    = {int(k): int(v) for k, v in state.get('balances', {}).items()}
-        from_block  = state.get('last_block', 0)
+        from_block  = state['last_block']
 
-        if saved_token is None:
-            # Previous run exhausted pagination — fetch from last known block
-            print(f'  Incremental from block {from_block}…')
-            new_events, _ = fetch_transfer_events(contract_address, from_block_number=from_block)
-        else:
+        if saved_token:
             print(f'  Resuming pagination (continuation_token present)…')
             new_events, _ = fetch_transfer_events(contract_address, continuation_token=saved_token)
+        else:
+            # Pagination exhausted in last run — fetch from last known block
+            print(f'  Incremental from block {from_block}…')
+            new_events, _ = fetch_transfer_events(contract_address, from_block_number=from_block)
 
         print(f'  {len(new_events)} new events')
 
