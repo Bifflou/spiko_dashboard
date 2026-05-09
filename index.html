@@ -984,15 +984,19 @@
 
         let rateFooter = '';
         if (rates && isoDate) {
+          const rEUR = getLastFxRate('EUR', isoDate);
+          const rGBP = getLastFxRate('GBP', isoDate);
           if (displayCurrency === 'EUR') {
-            const r = getLastFxRate('EUR', isoDate);
-            if (r) rateFooter = `<div class="tt-rate">1 € = ${r.toFixed(4)} $</div>`;
+            const parts = [];
+            if (rEUR) parts.push(`1 € = ${rEUR.toFixed(4)} $`);
+            if (rEUR && rGBP) parts.push(`1 € = ${(rEUR / rGBP).toFixed(4)} £`);
+            if (parts.length) rateFooter = `<div class="tt-rate">${parts.join('  ·  ')}</div>`;
           } else if (displayCurrency === 'GBP') {
-            const r = getLastFxRate('GBP', isoDate);
-            if (r) rateFooter = `<div class="tt-rate">1 £ = ${r.toFixed(4)} $</div>`;
+            const parts = [];
+            if (rGBP) parts.push(`1 £ = ${rGBP.toFixed(4)} $`);
+            if (rEUR && rGBP) parts.push(`1 £ = ${(rGBP / rEUR).toFixed(4)} €`);
+            if (parts.length) rateFooter = `<div class="tt-rate">${parts.join('  ·  ')}</div>`;
           } else {
-            const rEUR = getLastFxRate('EUR', isoDate);
-            const rGBP = getLastFxRate('GBP', isoDate);
             const parts = [];
             if (rEUR) parts.push(`1 $ = ${(1 / rEUR).toFixed(4)} €`);
             if (rGBP) parts.push(`1 $ = ${(1 / rGBP).toFixed(4)} £`);
