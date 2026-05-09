@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>CoinVertible Dashboard — SG Forge</title>
+  <title>Spiko Dashboard</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -28,9 +28,9 @@
       --border:    #182044;
       --border-hi: #243060;
       /* ── Brand ── */
-      --red:       #E2001A;
-      --red-dim:   rgba(226,0,26,0.12);
-      --red-dim2:  rgba(226,0,26,0.22);
+      --brand:     #2563EB;
+      --brand-dim:  rgba(37,99,235,0.12);
+      --brand-dim2: rgba(37,99,235,0.22);
       /* ── Text ── */
       --text:      #EEF0FF;
       --text-sec:  #A8B8D8;
@@ -38,6 +38,9 @@
       /* ── Status ── */
       --green:     #2EA87A;
       --red-neg:   #E2001A;
+      --red:       #E2001A;
+      --red-dim:   rgba(226,0,26,0.12);
+      --red-dim2:  rgba(226,0,26,0.22);
       /* ── Chart-specific ── */
       --chart-bg:    #0C1330;
       --pie-border:  #161b22;
@@ -83,7 +86,7 @@
     .header-accent {
       width: 3px;
       height: 26px;
-      background: var(--red);
+      background: var(--brand);
       border-radius: 2px;
       flex-shrink: 0;
     }
@@ -98,9 +101,9 @@
     .header-badge {
       font-size: 0.65rem;
       font-weight: 700;
-      color: var(--red);
-      background: var(--red-dim);
-      border: 1px solid var(--red-dim2);
+      color: var(--brand);
+      background: var(--brand-dim);
+      border: 1px solid var(--brand-dim2);
       border-radius: 4px;
       padding: 2px 8px;
       letter-spacing: 0.1em;
@@ -121,7 +124,7 @@
     .section-title {
       font-size: 0.65rem;
       font-weight: 700;
-      color: var(--red);
+      color: var(--brand);
       text-transform: uppercase;
       letter-spacing: 0.18em;
       margin-bottom: 1rem;
@@ -156,13 +159,13 @@
     .kpi-card {
       background: var(--bg-card);
       border: 1px solid var(--border);
-      border-top: 2px solid var(--red);
+      border-top: 2px solid var(--brand);
       border-radius: 10px;
       padding: 1.25rem 1.5rem;
       transition: border-color 0.2s;
     }
 
-    .kpi-card:hover { border-color: var(--border-hi); border-top-color: var(--red); }
+    .kpi-card:hover { border-color: var(--border-hi); border-top-color: var(--brand); }
 
     .kpi-label {
       font-size: 0.65rem;
@@ -260,7 +263,7 @@
       transition: background 0.15s;
     }
     .tracker-row:hover { background: var(--row-hover); }
-    .tracker-row.is-open { background: rgba(226,0,26,0.04); }
+    .tracker-row.is-open { background: rgba(37,99,235,0.04); }
 
     .tracker-row td {
       padding: 1rem 1.1rem;
@@ -636,16 +639,12 @@
 <body>
   <header>
     <div class="header-accent"></div>
-    <h1>CoinVertible Dashboard</h1>
-    <span class="header-badge">SG Forge</span>
+    <h1>Spiko Dashboard</h1>
+    <span class="header-badge">Spiko</span>
     <div style="display:flex; align-items:center; gap:8px; margin-left:auto; flex-shrink:0;">
       <div class="toggle-wrap">
         <button class="toggle-btn" id="btn-light" onclick="setTheme('light')">☀ Jour</button>
         <button class="toggle-btn" id="btn-dark"  onclick="setTheme('dark')">🌙 Nuit</button>
-      </div>
-      <div class="toggle-wrap">
-        <button class="toggle-btn active" id="btn-usd" onclick="setCurrency('USD')">USD</button>
-        <button class="toggle-btn"        id="btn-eur" onclick="setCurrency('EUR')">EUR</button>
       </div>
     </div>
   </header>
@@ -759,23 +758,46 @@
   </div>
 
   <p id="last-updated"></p>
-  <p id="rate-warning" style="display:none; margin-top:0.4rem; font-size:0.75rem; color:#E2601A;">
-    &#9888; Taux EUR/USD approximatif (service indisponible, fallback 1.08)
-  </p>
 
   <script>
-    // ── Chain definitions ───────────────────────────────────────────────────────
-    const EURCV_CHAINS = [
-      { label: 'Ethereum',   color: '#627EEA', mcapFile: 'data/marketcap.json',         holdersFile: 'data/holders.json' },
-      { label: 'Solana',     color: '#9945FF', mcapFile: 'data/sol_marketcap.json',      holdersFile: 'data/sol_holders.json' },
-      { label: 'XRP Ledger', color: '#00B4A0', mcapFile: 'data/xrpl_marketcap.json',    holdersFile: 'data/xrpl_holders.json' },
-      { label: 'Stellar',    color: '#2D9CDB', mcapFile: 'data/stellar_marketcap.json', holdersFile: 'data/stellar_holders.json' },
-    ];
+    // ── Chain color palette ─────────────────────────────────────────────────────
+    const CHAIN_COLORS = {
+      'Ethereum':    '#627EEA',
+      'Polygon':     '#8247E5',
+      'Base':        '#0052FF',
+      'Arbitrum':    '#28A0F0',
+      'Etherlink':   '#38BDF8',
+      'Stellar':     '#2D9CDB',
+      'Starknet':    '#EC796B',
+    };
 
-    const USDCV_CHAINS = [
-      { label: 'Ethereum', color: '#627EEA', mcapFile: 'data/usdcv_eth_marketcap.json', holdersFile: 'data/usdcv_eth_holders.json' },
-      { label: 'Solana',   color: '#9945FF', mcapFile: 'data/usdcv_sol_marketcap.json', holdersFile: 'data/usdcv_sol_holders.json' },
-    ];
+    function chainDefs(tokenId, hasEtherlink = true) {
+      const chains = [
+        { label: 'Ethereum',  mcapFile: `data/${tokenId}_eth_marketcap.json`,      holdersFile: `data/${tokenId}_eth_holders.json`      },
+        { label: 'Polygon',   mcapFile: `data/${tokenId}_polygon_marketcap.json`,  holdersFile: `data/${tokenId}_polygon_holders.json`  },
+        { label: 'Base',      mcapFile: `data/${tokenId}_base_marketcap.json`,     holdersFile: `data/${tokenId}_base_holders.json`     },
+        { label: 'Arbitrum',  mcapFile: `data/${tokenId}_arb_marketcap.json`,      holdersFile: `data/${tokenId}_arb_holders.json`      },
+      ];
+      if (hasEtherlink) {
+        chains.push({ label: 'Etherlink', mcapFile: `data/${tokenId}_etherlink_marketcap.json`, holdersFile: `data/${tokenId}_etherlink_holders.json` });
+      }
+      chains.push(
+        { label: 'Stellar',  mcapFile: `data/${tokenId}_stellar_marketcap.json`,  holdersFile: `data/${tokenId}_stellar_holders.json`  },
+        { label: 'Starknet', mcapFile: `data/${tokenId}_starknet_marketcap.json`, holdersFile: `data/${tokenId}_starknet_holders.json` },
+      );
+      return chains.map(c => ({ ...c, color: CHAIN_COLORS[c.label] }));
+    }
+
+    // Per-token chain definitions (SPKCC and eurSPKCC have no Etherlink)
+    const EUTBL_CHAINS    = chainDefs('eutbl');
+    const USTBL_CHAINS    = chainDefs('ustbl');
+    const UKTBL_CHAINS    = chainDefs('uktbl');
+    const SPKCC_CHAINS    = chainDefs('spkcc',    false);
+    const EURSPKCC_CHAINS = chainDefs('eurspkcc', false);
+    const SAFO_CHAINS     = chainDefs('safo');
+    const EURSAFO_CHAINS  = chainDefs('eursafo');
+    const GBPSAFO_CHAINS  = chainDefs('gbpsafo');
+    const CHFSAFO_CHAINS  = chainDefs('chfsafo');
 
     // ── Formatters ──────────────────────────────────────────────────────────────
     function fmtSpaced(v) {
@@ -888,10 +910,7 @@
           </div>`;
         }).join('');
 
-        const rate = getRateForDate(isoDate);
-        const rateFooter = rate
-          ? `<div class="tt-rate">${currentCurrency === 'EUR' ? `1 $ = ${(1/rate).toFixed(4)} €` : `1 € = ${rate.toFixed(4)} $`}</div>`
-          : '';
+        const rateFooter = '';
 
         el.innerHTML = `
           <div class="tt-header">
@@ -1298,72 +1317,47 @@
     }
 
     function buildKpiCards() {
-      // Chain metadata
-      const ALL_CHAINS = [
-        { label: 'Ethereum',   color: '#627EEA' },
-        { label: 'Solana',     color: '#9945FF' },
-        { label: 'XRP Ledger', color: '#00B4A0' },
-        { label: 'Stellar',    color: '#2D9CDB' },
-      ];
-      const TOKEN_META = [
-        { label: 'EURCV', color: '#6B7FD4' },
-        { label: 'USDCV', color: '#9B6DC5' },
-      ];
+      // ── Aggregate mcap & holders across all tokens and chains ──────────────
+      const chainTotals   = {};  // { chainLabel: { mcap, holders } }
+      const tokenTotals   = TOKEN_DEFS.map(def => {
+        const mcap    = state[def.id].mcapData.reduce((s, series) => s + getLatestValue(series, 'marketcap'), 0);
+        const holders = state[def.id].holdersData.reduce((s, series) => s + getLatestValue(series, 'holders'), 0);
 
-      // ── Currency-aware keys & formatters ──────────────────────────────────
-      const isUSD      = currentCurrency === 'USD';
-      const eurcvMcKey = isUSD ? 'marketcap' : 'supply';
-      const usdcvMcKey = isUSD ? 'supply'    : 'supply_eur';
-      const mcapSym    = isUSD ? '$' : '€';
+        def.chainDefs.forEach((ch, i) => {
+          if (!chainTotals[ch.label]) chainTotals[ch.label] = { color: ch.color, mcap: 0, holders: 0 };
+          chainTotals[ch.label].mcap    += getLatestValue(state[def.id].mcapData[i],    'marketcap');
+          chainTotals[ch.label].holders += getLatestValue(state[def.id].holdersData[i], 'holders');
+        });
 
-      // ── Latest market cap per chain & token ────────────────────────────────
-      const eurcvMcapLatest = state.eurcv.mcapData.map(s => getLatestValue(s, eurcvMcKey));
-      const usdcvMcapLatest = state.usdcv.mcapData.map(s => getLatestValue(s, usdcvMcKey));
-      const eurcvTotal = eurcvMcapLatest.reduce((a, b) => a + b, 0);
-      const usdcvTotal = usdcvMcapLatest.reduce((a, b) => a + b, 0);
-      const grandMcap  = eurcvTotal + usdcvTotal;
+        return { ...def, mcap, holders };
+      });
 
-      // ── Per-chain market cap ───────────────────────────────────────────────
-      const chainMcaps = ALL_CHAINS.map((ch, i) => ({
-        ...ch,
-        value: (eurcvMcapLatest[i] || 0) + (i < usdcvMcapLatest.length ? usdcvMcapLatest[i] : 0),
-      })).sort((a, b) => b.value - a.value);
+      const grandMcap    = tokenTotals.reduce((s, t) => s + t.mcap,    0);
+      const grandHolders = tokenTotals.reduce((s, t) => s + t.holders, 0);
 
-      // ── Latest holders per chain & token ──────────────────────────────────
-      const eurcvHoldLatest = state.eurcv.holdersData.map(s => getLatestValue(s, 'holders'));
-      const usdcvHoldLatest = state.usdcv.holdersData.map(s => getLatestValue(s, 'holders'));
-      const eurcvHoldTotal  = eurcvHoldLatest.reduce((a, b) => a + b, 0);
-      const usdcvHoldTotal  = usdcvHoldLatest.reduce((a, b) => a + b, 0);
-      const grandHolders    = eurcvHoldTotal + usdcvHoldTotal;
+      const chainMcapArr    = Object.entries(chainTotals).map(([label, v]) => ({ label, color: v.color, value: v.mcap    })).sort((a, b) => b.value - a.value);
+      const chainHoldersArr = Object.entries(chainTotals).map(([label, v]) => ({ label, color: v.color, value: v.holders })).sort((a, b) => b.value - a.value);
 
-      // ── Per-chain holders ─────────────────────────────────────────────────
-      const chainHolders = ALL_CHAINS.map((ch, i) => ({
-        ...ch,
-        value: (eurcvHoldLatest[i] || 0) + (i < usdcvHoldLatest.length ? usdcvHoldLatest[i] : 0),
-      })).sort((a, b) => b.value - a.value);
-
-      // ── Render Card 1 — Total Market Cap ──────────────────────────────────
+      // ── Card 1 — Total Market Cap (USD) ───────────────────────────────────
       document.getElementById('kpi-total-mcap').innerHTML = `
-        <div class="kpi-label">Total Market Cap (${currentCurrency})</div>
-        <div class="kpi-main">${fmtKpiMcap(grandMcap, mcapSym)}</div>
+        <div class="kpi-label">Total Market Cap (USD)</div>
+        <div class="kpi-main">${fmtKpiMcap(grandMcap, '$')}</div>
         <div class="kpi-details">
-          ${TOKEN_META.map((t, i) => {
-            const val = i === 0 ? eurcvTotal : usdcvTotal;
-            return `<div class="kpi-row">
+          ${tokenTotals.filter(t => t.mcap > 0).sort((a,b) => b.mcap - a.mcap).map(t => `
+            <div class="kpi-row">
               <div class="kpi-dot" style="background:${t.color}"></div>
-              <span class="kpi-row-name">${t.label}</span>
-              <span class="kpi-row-val">${fmtDetailMcap(val, mcapSym)}</span>
-              <span class="kpi-row-pct">(${pct(val, grandMcap)})</span>
-            </div>`;
-          }).join('')}
+              <span class="kpi-row-name">${t.ticker}</span>
+              <span class="kpi-row-val">${fmtDetailMcap(t.mcap, '$')}</span>
+              <span class="kpi-row-pct">(${pct(t.mcap, grandMcap)})</span>
+            </div>`).join('')}
         </div>`;
 
-      // ── Render Card 2 — Market Cap by Chain ───────────────────────────────
-      const [topChainMcap, ...otherChainsMcap] = chainMcaps.filter(c => c.value > 0);
+      // ── Card 2 — Market Cap by Chain ──────────────────────────────────────
+      const [topChainMcap, ...otherChainsMcap] = chainMcapArr.filter(c => c.value > 0);
       document.getElementById('kpi-chain-mcap').innerHTML = `
-        <div class="kpi-label">Market Cap par Chaîne (${currentCurrency})</div>
+        <div class="kpi-label">Market Cap par Chaîne (USD)</div>
         ${topChainMcap ? `
-          <div class="kpi-main">${fmtKpiMcap(topChainMcap.value, mcapSym)}</div>
+          <div class="kpi-main">${fmtKpiMcap(topChainMcap.value, '$')}</div>
           <div class="kpi-main-sub"><span style="color:${topChainMcap.color}">${topChainMcap.label}</span> <span class="kpi-row-pct">(${pct(topChainMcap.value, grandMcap)})</span></div>
         ` : '<div class="kpi-main">—</div>'}
         <div class="kpi-details">
@@ -1371,30 +1365,28 @@
             <div class="kpi-row">
               <div class="kpi-dot" style="background:${c.color}"></div>
               <span class="kpi-row-name">${c.label}</span>
-              <span class="kpi-row-val">${fmtDetailMcap(c.value, mcapSym)}</span>
+              <span class="kpi-row-val">${fmtDetailMcap(c.value, '$')}</span>
               <span class="kpi-row-pct">(${pct(c.value, grandMcap)})</span>
             </div>`).join('')}
         </div>`;
 
-      // ── Render Card 3 — Total Holders ─────────────────────────────────────
+      // ── Card 3 — Total Holders ────────────────────────────────────────────
       document.getElementById('kpi-total-holders').innerHTML = `
         <div class="kpi-label">Total Holders</div>
         <div class="kpi-main">${fmtSpaced(grandHolders)}</div>
         <div class="kpi-note-tiny">* comptage cross-chaîne non dédupliqué</div>
         <div class="kpi-details">
-          ${TOKEN_META.map((t, i) => {
-            const val = i === 0 ? eurcvHoldTotal : usdcvHoldTotal;
-            return `<div class="kpi-row">
+          ${tokenTotals.filter(t => t.holders > 0).sort((a,b) => b.holders - a.holders).map(t => `
+            <div class="kpi-row">
               <div class="kpi-dot" style="background:${t.color}"></div>
-              <span class="kpi-row-name">${t.label}</span>
-              <span class="kpi-row-val">${fmtSpaced(val)}</span>
-              <span class="kpi-row-pct">(${pct(val, grandHolders)})</span>
-            </div>`;
-          }).join('')}
+              <span class="kpi-row-name">${t.ticker}</span>
+              <span class="kpi-row-val">${fmtSpaced(t.holders)}</span>
+              <span class="kpi-row-pct">(${pct(t.holders, grandHolders)})</span>
+            </div>`).join('')}
         </div>`;
 
-      // ── Render Card 4 — Holders by Chain ──────────────────────────────────
-      const [topChainH, ...othersH] = chainHolders.filter(c => c.value > 0);
+      // ── Card 4 — Holders by Chain ─────────────────────────────────────────
+      const [topChainH, ...othersH] = chainHoldersArr.filter(c => c.value > 0);
       document.getElementById('kpi-chain-holders').innerHTML = `
         <div class="kpi-label">Holders par Chaîne</div>
         ${topChainH ? `
@@ -1413,17 +1405,9 @@
     }
 
     // ── Global overview helpers ─────────────────────────────────────────────────
-    const GLOBAL_TOKEN_CHAINS = [
-      { label: 'EURCV', color: '#6B7FD4' },
-      { label: 'USDCV', color: '#9B6DC5' },
-    ];
-
-    const GLOBAL_CHAIN_CHAINS = [
-      { label: 'Ethereum',   color: '#627EEA' },
-      { label: 'Solana',     color: '#9945FF' },
-      { label: 'XRP Ledger', color: '#00B4A0' },
-      { label: 'Stellar',    color: '#2D9CDB' },
-    ];
+    // Built lazily from TOKEN_DEFS after it's declared — see bottom of script.
+    let GLOBAL_TOKEN_CHAINS = [];
+    let GLOBAL_CHAIN_CHAINS = Object.entries(CHAIN_COLORS).map(([label, color]) => ({ label, color }));
 
     // Merge N series [{series, key}] → [{date, value}] summed per day with forward-fill
     function mergeSeries(inputs) {
@@ -1451,10 +1435,10 @@
     const fmtAxisH = v => fmtSpaced(v);
 
     const globalData = {
-      'mcap-token':    { mode: 'line', chart: null, chains: null, seriesArr: null, fmtVal: fmtUSD,  fmtAxis: fmtAxisUSD, useRates: true  },
-      'mcap-chain':    { mode: 'line', chart: null, chains: null, seriesArr: null, fmtVal: fmtUSD,  fmtAxis: fmtAxisUSD, useRates: true  },
-      'holders-token': { mode: 'line', chart: null, chains: null, seriesArr: null, fmtVal: fmtH,    fmtAxis: fmtAxisH,   useRates: false },
-      'holders-chain': { mode: 'line', chart: null, chains: null, seriesArr: null, fmtVal: fmtH,    fmtAxis: fmtAxisH,   useRates: false },
+      'mcap-token':    { mode: 'line', chart: null, chains: null, seriesArr: null, fmtVal: fmtUSD, fmtAxis: fmtAxisUSD },
+      'mcap-chain':    { mode: 'line', chart: null, chains: null, seriesArr: null, fmtVal: fmtUSD, fmtAxis: fmtAxisUSD },
+      'holders-token': { mode: 'line', chart: null, chains: null, seriesArr: null, fmtVal: fmtH,   fmtAxis: fmtAxisH   },
+      'holders-chain': { mode: 'line', chart: null, chains: null, seriesArr: null, fmtVal: fmtH,   fmtAxis: fmtAxisH   },
     };
 
     function rebuildGlobalChart(id) {
@@ -1472,7 +1456,7 @@
         d.chart.data.labels = stacked.labels;
         d.chart.options.scales.y.ticks.callback = d.fmtAxis;
         d.chart.options.plugins.tooltip.external = makeTooltipHandler(
-          d.fmtVal, stacked.paired, d.useRates ? eurusdRates : null, stacked.rawDates
+          d.fmtVal, stacked.paired, null, stacked.rawDates
         );
         d.chart.update();
         syncModeButtons(id, d.mode);
@@ -1483,7 +1467,7 @@
       const wrap = document.getElementById(canvasId).parentElement;
       wrap.innerHTML = `<canvas id="${canvasId}"></canvas>`;
       if (d.mode === 'line') {
-        d.chart = buildLineChart(canvasId, buildStacked(d.chains, d.seriesArr, 'value'), d.fmtVal, d.fmtAxis, d.useRates ? eurusdRates : null);
+        d.chart = buildLineChart(canvasId, buildStacked(d.chains, d.seriesArr, 'value'), d.fmtVal, d.fmtAxis);
       } else {
         d.chart = buildPieChart(canvasId, d.seriesArr, d.chains, 'value', d.fmtVal);
       }
@@ -1505,115 +1489,70 @@
     }
 
     function buildGlobalCharts() {
-      const isUSD      = currentCurrency === 'USD';
-      const eurcvMcKey = isUSD ? 'marketcap' : 'supply';
-      const usdcvMcKey = isUSD ? 'supply'    : 'supply_eur';
-      const fmtMcVal   = isUSD ? fmtUSD   : fmtEUR;
-      const fmtMcAxis  = isUSD ? fmtAxisUSD : fmtAxisEUR;
-      const mcapLabel  = isUSD ? 'USD' : 'EUR';
-
-      document.getElementById('global-mcap-token-title').textContent = `Total Market Cap par Token (${mcapLabel})`;
-      document.getElementById('global-mcap-chain-title').textContent = `Total Market Cap par Chaîne (${mcapLabel})`;
-
       // ── Market Cap by Token ─────────────────────────────────────────────────
-      const eurcvMcapTotal = mergeSeries(state.eurcv.mcapData.map(s => ({ series: s, key: eurcvMcKey })));
-      const usdcvMcapTotal = mergeSeries(state.usdcv.mcapData.map(s => ({ series: s, key: usdcvMcKey })));
       globalData['mcap-token'].chains    = GLOBAL_TOKEN_CHAINS;
-      globalData['mcap-token'].seriesArr = [eurcvMcapTotal, usdcvMcapTotal];
-      globalData['mcap-token'].fmtVal    = fmtMcVal;
-      globalData['mcap-token'].fmtAxis   = fmtMcAxis;
-      globalData['mcap-token'].useRates  = true;
+      globalData['mcap-token'].seriesArr = TOKEN_DEFS.map(def =>
+        mergeSeries(state[def.id].mcapData.map(s => ({ series: s, key: 'marketcap' })))
+      );
+      globalData['mcap-token'].fmtVal  = fmtUSD;
+      globalData['mcap-token'].fmtAxis = fmtAxisUSD;
       rebuildGlobalChart('mcap-token');
 
       // ── Market Cap by Chain ─────────────────────────────────────────────────
       globalData['mcap-chain'].chains    = GLOBAL_CHAIN_CHAINS;
-      globalData['mcap-chain'].seriesArr = [
-        mergeSeries([{ series: state.eurcv.mcapData[0], key: eurcvMcKey }, { series: state.usdcv.mcapData[0], key: usdcvMcKey }]),
-        mergeSeries([{ series: state.eurcv.mcapData[1], key: eurcvMcKey }, { series: state.usdcv.mcapData[1], key: usdcvMcKey }]),
-        mergeSeries([{ series: state.eurcv.mcapData[2], key: eurcvMcKey }]),
-        mergeSeries([{ series: state.eurcv.mcapData[3], key: eurcvMcKey }]),
-      ];
-      globalData['mcap-chain'].fmtVal   = fmtMcVal;
-      globalData['mcap-chain'].fmtAxis  = fmtMcAxis;
-      globalData['mcap-chain'].useRates = true;
+      globalData['mcap-chain'].seriesArr = GLOBAL_CHAIN_CHAINS.map(ch =>
+        mergeSeries(TOKEN_DEFS.flatMap(def => {
+          const idx = def.chainDefs.findIndex(c => c.label === ch.label);
+          return idx < 0 ? [] : [{ series: state[def.id].mcapData[idx], key: 'marketcap' }];
+        }))
+      );
+      globalData['mcap-chain'].fmtVal  = fmtUSD;
+      globalData['mcap-chain'].fmtAxis = fmtAxisUSD;
       rebuildGlobalChart('mcap-chain');
 
       // ── Holders by Token ────────────────────────────────────────────────────
-      const eurcvHoldersTotal = mergeSeries(state.eurcv.holdersData.map(s => ({ series: s, key: 'holders' })));
-      const usdcvHoldersTotal = mergeSeries(state.usdcv.holdersData.map(s => ({ series: s, key: 'holders' })));
       globalData['holders-token'].chains    = GLOBAL_TOKEN_CHAINS;
-      globalData['holders-token'].seriesArr = [eurcvHoldersTotal, usdcvHoldersTotal];
+      globalData['holders-token'].seriesArr = TOKEN_DEFS.map(def =>
+        mergeSeries(state[def.id].holdersData.map(s => ({ series: s, key: 'holders' })))
+      );
       rebuildGlobalChart('holders-token');
 
       // ── Holders by Chain ────────────────────────────────────────────────────
       globalData['holders-chain'].chains    = GLOBAL_CHAIN_CHAINS;
-      globalData['holders-chain'].seriesArr = [
-        mergeSeries([{ series: state.eurcv.holdersData[0], key: 'holders' }, { series: state.usdcv.holdersData[0], key: 'holders' }]),
-        mergeSeries([{ series: state.eurcv.holdersData[1], key: 'holders' }, { series: state.usdcv.holdersData[1], key: 'holders' }]),
-        mergeSeries([{ series: state.eurcv.holdersData[2], key: 'holders' }]),
-        mergeSeries([{ series: state.eurcv.holdersData[3], key: 'holders' }]),
-      ];
+      globalData['holders-chain'].seriesArr = GLOBAL_CHAIN_CHAINS.map(ch =>
+        mergeSeries(TOKEN_DEFS.flatMap(def => {
+          const idx = def.chainDefs.findIndex(c => c.label === ch.label);
+          return idx < 0 ? [] : [{ series: state[def.id].holdersData[idx], key: 'holders' }];
+        }))
+      );
       rebuildGlobalChart('holders-chain');
     }
 
     // ── State ───────────────────────────────────────────────────────────────────
-    let currentCurrency = 'USD';
-    let isSmoothing     = false;   // true during setCurrency → enables in-place chart data update
-    // Persistent hidden-series state: { [chartId]: { [seriesLabel]: boolean } }
-    // chartId = canvasId without the "chart-" prefix (e.g. "eurcv-mcap", "global-mcap-token")
+    let isSmoothing = false;
     const hiddenStates = {};
-    let eurusdRates     = {};
 
-    const state = {
-      eurcv: { mcapMode: 'line', holdersMode: 'line', mcapData: null, holdersData: null, mcapChart: null, holdersChart: null },
-      usdcv: { mcapMode: 'line', holdersMode: 'line', mcapData: null, holdersData: null, mcapChart: null, holdersChart: null },
-    };
+    // Built from TOKEN_DEFS once it's declared (see below)
+    const state = {};
 
     // ── Rebuild chart (accordion) ───────────────────────────────────────────────
     function rebuildChart(token, type) {
-      const s = state[token];
-      const chains = token === 'eurcv' ? EURCV_CHAINS : USDCV_CHAINS;
+      const s      = state[token];
+      const def    = TOKEN_DEFS.find(d => d.id === token);
+      const chains = def ? def.chainDefs : [];
       const canvasId = `chart-${token}-${type}`;
       const canvas = document.getElementById(canvasId);
-      if (!canvas) return; // accordion not open
+      if (!canvas) return;
 
       if (type === 'mcap') {
-        const isUSD    = currentCurrency === 'USD';
-        const fmtVal   = isUSD ? fmtUSD : fmtEUR;
-        const fmtAxis  = isUSD ? fmtAxisUSD : fmtAxisEUR;
-        const valueKey = token === 'eurcv'
-          ? (isUSD ? 'marketcap' : 'supply')
-          : (isUSD ? 'supply'    : 'supply_eur');
-
-        // Smooth in-place update when just switching currency on a line chart
-        if (isSmoothing && s.mcapChart && s.mcapMode === 'line') {
-          const stacked = buildStacked(chains, s.mcapData, valueKey);
-          stacked.filled.forEach((fillData, pi) => {
-            const di = stacked.paired.length - 1 - pi;
-            if (s.mcapChart.data.datasets[di]) s.mcapChart.data.datasets[di].data = fillData;
-          });
-          s.mcapChart.data.labels = stacked.labels;
-          s.mcapChart.options.scales.y.ticks.callback = fmtAxis;
-          s.mcapChart.options.plugins.tooltip.external = makeTooltipHandler(
-            fmtVal, stacked.paired, eurusdRates, stacked.rawDates
-          );
-          s.mcapChart.update();
-          const titleEl = document.getElementById(`${token}-mcap-title`);
-          if (titleEl) titleEl.textContent = `Market Capitalisation (${currentCurrency})`;
-          return;
-        }
-
         if (s.mcapChart) { s.mcapChart.destroy(); s.mcapChart = null; }
         const wrap = canvas.parentElement;
         wrap.innerHTML = `<canvas id="${canvasId}"></canvas>`;
         if (s.mcapMode === 'line') {
-          s.mcapChart = buildLineChart(canvasId, buildStacked(chains, s.mcapData, valueKey), fmtVal, fmtAxis, eurusdRates);
+          s.mcapChart = buildLineChart(canvasId, buildStacked(chains, s.mcapData, 'marketcap'), fmtUSD, fmtAxisUSD);
         } else {
-          s.mcapChart = buildPieChart(canvasId, s.mcapData, chains, valueKey, fmtVal);
+          s.mcapChart = buildPieChart(canvasId, s.mcapData, chains, 'marketcap', fmtUSD);
         }
-        const titleEl = document.getElementById(`${token}-mcap-title`);
-        if (titleEl) titleEl.textContent = `Market Capitalisation (${currentCurrency})`;
-
       } else {
         if (s.holdersChart) { s.holdersChart.destroy(); s.holdersChart = null; }
         const wrap = canvas.parentElement;
@@ -1644,38 +1583,96 @@
     let trackerSort = { key: 'mcap', dir: 'desc' };
     let openToken   = null;
 
+    const CHAIN_LOGOS = {
+      'Ethereum':  './img/ethereum.png',
+      'Polygon':   './img/polygon.png',
+      'Base':      './img/base.png',
+      'Arbitrum':  './img/arbitrum.png',
+      'Etherlink': './img/etherlink.png',
+      'Stellar':   './img/stellar.png',
+      'Starknet':  './img/starknet.png',
+    };
+
     const TOKEN_DEFS = [
       {
-        id: 'eurcv', name: 'EUR CoinVertible', ticker: 'EURCV',
+        id: 'eutbl', name: 'Euro T-Bill', ticker: 'EUTBL',
+        color: '#2563EB',
         peg: { symbol: '€', code: 'EUR' },
-        issuer: 'SG Forge',
-        type: 'Centralisé',
-        mica: 'Oui',
-        integration: 'Natif',
-        logo: './img/eurcv.png',
-        chainDefs: EURCV_CHAINS,
-        chainLogos: [
-          { src: './img/ethereum.png', label: 'Ethereum' },
-          { src: './img/solana.png',   label: 'Solana'   },
-          { src: './img/xrp.png',      label: 'XRP Ledger' },
-          { src: './img/stellar.png',  label: 'Stellar'  },
-        ],
+        issuer: 'Spiko', type: 'Tokenisé', mica: 'Oui', integration: 'Natif',
+        logo: './img/eutbl.png', chainDefs: EUTBL_CHAINS,
+        chainLogos: EUTBL_CHAINS.map(c => ({ src: CHAIN_LOGOS[c.label], label: c.label })),
       },
       {
-        id: 'usdcv', name: 'USD CoinVertible', ticker: 'USDCV',
+        id: 'ustbl', name: 'US T-Bill', ticker: 'USTBL',
+        color: '#059669',
         peg: { symbol: '$', code: 'USD' },
-        issuer: 'SG Forge',
-        type: 'Centralisé',
-        mica: 'Oui',
-        integration: 'Natif',
-        logo: './img/usdcv.png',
-        chainDefs: USDCV_CHAINS,
-        chainLogos: [
-          { src: './img/ethereum.png', label: 'Ethereum' },
-          { src: './img/solana.png',   label: 'Solana'   },
-        ],
+        issuer: 'Spiko', type: 'Tokenisé', mica: 'Non', integration: 'Natif',
+        logo: './img/ustbl.png', chainDefs: USTBL_CHAINS,
+        chainLogos: USTBL_CHAINS.map(c => ({ src: CHAIN_LOGOS[c.label], label: c.label })),
+      },
+      {
+        id: 'uktbl', name: 'UK T-Bill', ticker: 'UKTBL',
+        color: '#7C3AED',
+        peg: { symbol: '£', code: 'GBP' },
+        issuer: 'Spiko', type: 'Tokenisé', mica: 'Non', integration: 'Natif',
+        logo: './img/uktbl.png', chainDefs: UKTBL_CHAINS,
+        chainLogos: UKTBL_CHAINS.map(c => ({ src: CHAIN_LOGOS[c.label], label: c.label })),
+      },
+      {
+        id: 'spkcc', name: 'Spiko Cash USD', ticker: 'SPKCC',
+        color: '#0EA5E9',
+        peg: { symbol: '$', code: 'USD' },
+        issuer: 'Spiko', type: 'Tokenisé', mica: 'Non', integration: 'Natif',
+        logo: './img/spkcc.png', chainDefs: SPKCC_CHAINS,
+        chainLogos: SPKCC_CHAINS.map(c => ({ src: CHAIN_LOGOS[c.label], label: c.label })),
+      },
+      {
+        id: 'eurspkcc', name: 'Spiko Cash EUR', ticker: 'eurSPKCC',
+        color: '#0891B2',
+        peg: { symbol: '€', code: 'EUR' },
+        issuer: 'Spiko', type: 'Tokenisé', mica: 'Oui', integration: 'Natif',
+        logo: './img/eurspkcc.png', chainDefs: EURSPKCC_CHAINS,
+        chainLogos: EURSPKCC_CHAINS.map(c => ({ src: CHAIN_LOGOS[c.label], label: c.label })),
+      },
+      {
+        id: 'safo', name: 'Safe Obligations USD', ticker: 'SAFO',
+        color: '#D97706',
+        peg: { symbol: '$', code: 'USD' },
+        issuer: 'Spiko', type: 'Tokenisé', mica: 'Non', integration: 'Natif',
+        logo: './img/safo.png', chainDefs: SAFO_CHAINS,
+        chainLogos: SAFO_CHAINS.map(c => ({ src: CHAIN_LOGOS[c.label], label: c.label })),
+      },
+      {
+        id: 'eursafo', name: 'Safe Obligations EUR', ticker: 'eurSAFO',
+        color: '#DC2626',
+        peg: { symbol: '€', code: 'EUR' },
+        issuer: 'Spiko', type: 'Tokenisé', mica: 'Oui', integration: 'Natif',
+        logo: './img/eursafo.png', chainDefs: EURSAFO_CHAINS,
+        chainLogos: EURSAFO_CHAINS.map(c => ({ src: CHAIN_LOGOS[c.label], label: c.label })),
+      },
+      {
+        id: 'gbpsafo', name: 'Safe Obligations GBP', ticker: 'gbpSAFO',
+        color: '#9333EA',
+        peg: { symbol: '£', code: 'GBP' },
+        issuer: 'Spiko', type: 'Tokenisé', mica: 'Non', integration: 'Natif',
+        logo: './img/gbpsafo.png', chainDefs: GBPSAFO_CHAINS,
+        chainLogos: GBPSAFO_CHAINS.map(c => ({ src: CHAIN_LOGOS[c.label], label: c.label })),
+      },
+      {
+        id: 'chfsafo', name: 'Safe Obligations CHF', ticker: 'chfSAFO',
+        color: '#0F766E',
+        peg: { symbol: 'Fr', code: 'CHF' },
+        issuer: 'Spiko', type: 'Tokenisé', mica: 'Non', integration: 'Natif',
+        logo: './img/chfsafo.png', chainDefs: CHFSAFO_CHAINS,
+        chainLogos: CHFSAFO_CHAINS.map(c => ({ src: CHAIN_LOGOS[c.label], label: c.label })),
       },
     ];
+
+    // Populate global token/chain lists from TOKEN_DEFS
+    GLOBAL_TOKEN_CHAINS.push(...TOKEN_DEFS.map(d => ({ label: d.ticker, color: d.color })));
+    TOKEN_DEFS.forEach(d => {
+      state[d.id] = { mcapMode: 'line', holdersMode: 'line', mcapData: null, holdersData: null, mcapChart: null, holdersChart: null };
+    });
 
     // ── Change % helpers ────────────────────────────────────────────────────────
     function isoSubDays(isoDate, days) {
@@ -1712,22 +1709,17 @@
     }
 
     function getTokenRows() {
-      const isUSD      = currentCurrency === 'USD';
-      const eurcvMcKey = isUSD ? 'marketcap' : 'supply';
-      const usdcvMcKey = isUSD ? 'supply'    : 'supply_eur';
       return TOKEN_DEFS.map(def => {
-        const mcKey   = def.id === 'eurcv' ? eurcvMcKey : usdcvMcKey;
-        const mcap    = state[def.id].mcapData.reduce((s, series) => s + getLatestValue(series, mcKey), 0);
+        const mcap    = state[def.id].mcapData.reduce((s, series) => s + getLatestValue(series, 'marketcap'), 0);
         const holders = state[def.id].holdersData.reduce((s, series) => s + getLatestValue(series, 'holders'), 0);
 
-        // Build merged total-mcap series for this token (forward-filled daily)
-        const merged = totalMcapSeries(def.id, mcKey);
+        const merged = totalMcapSeries(def.id, 'marketcap');
         if (!merged.length) return { ...def, mcap, holders, chg1d: null, chg7d: null, chg1m: null };
 
         const latestDate = merged[merged.length - 1].date;
-        const v1d  = valueAtDate(merged, isoSubDays(latestDate, 1));
-        const v7d  = valueAtDate(merged, isoSubDays(latestDate, 7));
-        const v1m  = valueAtDate(merged, isoSubDays(latestDate, 30));
+        const v1d = valueAtDate(merged, isoSubDays(latestDate, 1));
+        const v7d = valueAtDate(merged, isoSubDays(latestDate, 7));
+        const v1m = valueAtDate(merged, isoSubDays(latestDate, 30));
 
         return {
           ...def, mcap, holders,
@@ -1765,11 +1757,10 @@
 
     function makeExpandInner(token) {
       const id = token.id;
-      const currency = currentCurrency;
       return `
         <div class="expand-chart-card">
           <div class="card-header">
-            <h2 id="${id}-mcap-title">Market Capitalisation (${currency})</h2>
+            <h2 id="${id}-mcap-title">Market Capitalisation (USD)</h2>
             <div class="toggle-wrap">
               <button class="toggle-btn active" id="${id}-mcap-btn-line" onclick="setView('${id}','mcap','line')" title="Courbe">${SVG_LINE}</button>
               <button class="toggle-btn"        id="${id}-mcap-btn-pie"  onclick="setView('${id}','mcap','pie')"  title="Camembert">${SVG_PIE}</button>
@@ -1806,7 +1797,7 @@
                                          : (va > vb ? -1 : va < vb ? 1 : 0);
       });
 
-      const mcapSym = currentCurrency === 'USD' ? '$' : '€';
+      const mcapSym = '$';
       const tbody = document.getElementById('tracker-tbody');
       tbody.innerHTML = '';
 
@@ -1933,10 +1924,9 @@
       buildTrackerTable();
     }
 
-    // Update only the mcap/change cell values in existing rows — no DOM rebuild
     function refreshTrackerValues() {
       const rows = getTokenRows();
-      const mcapSym = currentCurrency === 'USD' ? '$' : '€';
+      const mcapSym = '$';
       rows.forEach(token => {
         const tr = document.querySelector(`.tracker-row[data-token="${token.id}"]`);
         if (!tr) return;
@@ -1947,43 +1937,33 @@
       });
       if (openToken) {
         const titleEl = document.getElementById(`${openToken}-mcap-title`);
-        if (titleEl) titleEl.textContent = `Market Capitalisation (${currentCurrency})`;
+        if (titleEl) titleEl.textContent = 'Market Capitalisation (USD)';
       }
     }
 
-    function setCurrency(currency) {
-      if (currency === currentCurrency) return;
-      currentCurrency = currency;
-      document.getElementById('btn-usd').classList.toggle('active', currency === 'USD');
-      document.getElementById('btn-eur').classList.toggle('active', currency === 'EUR');
-      buildKpiCards();
-      isSmoothing = true;
-      buildGlobalCharts();                         // global line charts: smooth in-place
-      if (openToken) rebuildChart(openToken, 'mcap'); // accordion mcap chart: smooth in-place
-      isSmoothing = false;
-      refreshTrackerValues();                      // update cell values without DOM rebuild
-    }
 
     // ── Init ────────────────────────────────────────────────────────────────────
     async function init() {
-      const allChains = [...EURCV_CHAINS, ...USDCV_CHAINS];
-      const files = allChains.flatMap(c => [c.mcapFile, c.holdersFile]);
+      // Load all data files for every token × chain in parallel
+      const allFiles = TOKEN_DEFS.flatMap(def =>
+        def.chainDefs.flatMap(c => [c.mcapFile, c.holdersFile])
+      );
       const results = await Promise.all(
-        files.map(f => fetch(f).then(r => r.ok ? r.json() : []).catch(() => []))
+        allFiles.map(f => fetch(f).then(r => r.ok ? r.json() : []).catch(() => []))
       );
 
-      const eurcvMcapRaw = EURCV_CHAINS.map((_, i) => results[i * 2]);
-      const eurcvHolders = EURCV_CHAINS.map((_, i) => results[i * 2 + 1]);
-      const base = EURCV_CHAINS.length * 2;
-      const usdcvMcapRaw = USDCV_CHAINS.map((_, i) => results[base + i * 2]);
-      const usdcvHolders = USDCV_CHAINS.map((_, i) => results[base + i * 2 + 1]);
-
-      eurusdRates = await loadEurUsdRates();
-
-      state.eurcv.mcapData    = eurcvMcapRaw.map(s => applyEurUsdRates(s, eurusdRates));
-      state.eurcv.holdersData = eurcvHolders;
-      state.usdcv.mcapData    = usdcvMcapRaw.map(s => applyUsdcvRates(s, eurusdRates));
-      state.usdcv.holdersData = usdcvHolders;
+      // Distribute results into state — order matches allFiles construction above
+      let idx = 0;
+      TOKEN_DEFS.forEach(def => {
+        const mcapData    = [];
+        const holdersData = [];
+        def.chainDefs.forEach(() => {
+          mcapData.push(results[idx++]);
+          holdersData.push(results[idx++]);
+        });
+        state[def.id].mcapData    = mcapData;
+        state[def.id].holdersData = holdersData;
+      });
 
       // Sync theme buttons with saved preference
       const savedTheme = document.documentElement.getAttribute('data-theme') || 'dark';

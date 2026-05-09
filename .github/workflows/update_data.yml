@@ -22,34 +22,31 @@ jobs:
       - name: Install dependencies
         run: pip install requests
 
-      - name: Fetch Ethereum data
+      - name: Fetch FX rates (EUR/GBP/CHF → USD)
+        run: python scripts/fetch_fx_rates.py
+
+      - name: Fetch Ethereum data (all 9 tokens)
         env:
           ETHERSCAN_API_KEY: ${{ secrets.ETHERSCAN_API_KEY }}
-        run: python scripts/fetch_data.py
+        run: python scripts/fetch_evm_data.py eth
 
-      - name: Fetch Solana data
+      - name: Fetch Polygon data (all 9 tokens)
         env:
-          HELIUS_API_KEY: ${{ secrets.HELIUS_API_KEY }}
-        run: python scripts/fetch_sol_data.py
+          ETHERSCAN_API_KEY: ${{ secrets.ETHERSCAN_API_KEY }}
+        run: python scripts/fetch_evm_data.py polygon
 
-      - name: Fetch XRPL data
-        run: python scripts/fetch_xrpl_data.py
+      - name: Fetch Base data (all 9 tokens)
+        env:
+          ETHERSCAN_API_KEY: ${{ secrets.ETHERSCAN_API_KEY }}
+        run: python scripts/fetch_evm_data.py base
 
-      - name: Fetch Stellar data
+      - name: Fetch Arbitrum data (all 9 tokens)
+        env:
+          ETHERSCAN_API_KEY: ${{ secrets.ETHERSCAN_API_KEY }}
+        run: python scripts/fetch_evm_data.py arb
+
+      - name: Fetch Stellar data (all 9 tokens)
         run: python scripts/fetch_stellar_data.py
-
-      - name: Fetch USDCV Ethereum data
-        env:
-          ETHERSCAN_API_KEY: ${{ secrets.ETHERSCAN_API_KEY }}
-        run: python scripts/fetch_usdcv_eth_data.py
-
-      - name: Fetch USDCV Solana data
-        env:
-          HELIUS_API_KEY: ${{ secrets.HELIUS_API_KEY }}
-        run: python scripts/fetch_usdcv_sol_data.py
-
-      - name: Fetch EUR/USD rates
-        run: python scripts/fetch_eurusd_rates.py
 
       - name: Commit and push
         run: |
