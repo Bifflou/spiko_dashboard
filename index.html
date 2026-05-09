@@ -593,6 +593,28 @@
 
     .toggle-btn svg { display: block; }
 
+    .currency-select {
+      background: var(--bg-deep);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 4px 26px 4px 10px;
+      cursor: pointer;
+      font-family: inherit;
+      letter-spacing: 0.04em;
+      appearance: none;
+      -webkit-appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23888' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 8px center;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .currency-select:hover { border-color: var(--border-hi); }
+    .currency-select option { background: var(--bg-card); color: var(--text); }
+
 
     /* ── External tooltip ────────────────────────────────────────────────── */
     .chart-tooltip {
@@ -642,10 +664,11 @@
     <h1>Spiko Dashboard</h1>
     <span class="header-badge">Spiko</span>
     <div style="display:flex; align-items:center; gap:8px; margin-left:auto; flex-shrink:0;">
-      <div class="toggle-wrap">
-        <button class="toggle-btn active" id="btn-usd" onclick="setCurrency('USD')">$ USD</button>
-        <button class="toggle-btn"        id="btn-eur" onclick="setCurrency('EUR')">€ EUR</button>
-      </div>
+      <select id="currency-select" class="currency-select" onchange="setCurrency(this.value)">
+        <option value="USD">$ USD</option>
+        <option value="EUR">€ EUR</option>
+        <option value="GBP">£ GBP</option>
+      </select>
       <div class="toggle-wrap">
         <button class="toggle-btn" id="btn-light" onclick="setTheme('light')">☀ Jour</button>
         <button class="toggle-btn" id="btn-dark"  onclick="setTheme('dark')">🌙 Nuit</button>
@@ -821,13 +844,20 @@
       if (v >= 1e3) return '€' + (v / 1e3).toFixed(0) + 'K';
       return '€' + v;
     }
+    function fmtGBP(v)  { return '£ ' + fmtSpaced(v); }
+    function fmtAxisGBP(v) {
+      if (v >= 1e9) return '£' + (v / 1e9).toFixed(1) + 'B';
+      if (v >= 1e6) return '£' + (v / 1e6).toFixed(0) + 'M';
+      if (v >= 1e3) return '£' + (v / 1e3).toFixed(0) + 'K';
+      return '£' + v;
+    }
 
     // ── Currency toggle ─────────────────────────────────────────────────────────
     let fxRatesData    = {};
     let displayCurrency = 'USD';
 
-    function getLastEurRate(isoDate) {
-      const rates = fxRatesData['EUR'];
+    function getLastFxRate(currency, isoDate) {
+      const rates = fxRatesData[currency];
       if (!rates) return null;
       let last = null;
       for (const d of Object.keys(rates).sort()) {
@@ -838,18 +868,26 @@
 
     function getMcapTransformFn() {
       if (displayCurrency === 'USD') return null;
-      return (val, date) => { const r = getLastEurRate(date); return r ? val / r : val; };
+      return (val, date) => { const r = getLastFxRate(displayCurrency, date); return r ? val / r : val; };
     }
 
     function convertMcapToDisplay(usdVal) {
       if (displayCurrency === 'USD') return usdVal;
       const today = new Date().toISOString().slice(0, 10);
-      const r = getLastEurRate(today);
+      const r = getLastFxRate(displayCurrency, today);
       return r ? usdVal / r : usdVal;
     }
 
-    function fmtMcapVal(v)  { return displayCurrency === 'EUR' ? fmtEUR(v)     : fmtUSD(v); }
-    function fmtAxisMcap(v) { return displayCurrency === 'EUR' ? fmtAxisEUR(v) : fmtAxisUSD(v); }
+    function fmtMcapVal(v) {
+      if (displayCurrency === 'EUR') return fmtEUR(v);
+      if (displayCurrency === 'GBP') return fmtGBP(v);
+      return fmtUSD(v);
+    }
+    function fmtAxisMcap(v) {
+      if (displayCurrency === 'EUR') return fmtAxisEUR(v);
+      if (displayCurrency === 'GBP') return fmtAxisGBP(v);
+      return fmtAxisUSD(v);
+    }
 
     function fmtDate(s) {
       const [y, m, d] = s.split('-');
@@ -944,12 +982,23 @@
           </div>`;
         }).join('');
 
-        const rate = getRateForDate(isoDate);
-        const rateFooter = (rate && isoDate)
-          ? displayCurrency === 'EUR'
-            ? `<div class="tt-rate">1 € = ${rate.toFixed(4)} $</div>`
-            : `<div class="tt-rate">1 $ = ${(1 / rate).toFixed(4)} €</div>`
-          : '';
+        let rateFooter = '';
+        if (rates && isoDate) {
+          if (displayCurrency === 'EUR') {
+            const r = getLastFxRate('EUR', isoDate);
+            if (r) rateFooter = `<div class="tt-rate">1 € = ${r.toFixed(4)} $</div>`;
+          } else if (displayCurrency === 'GBP') {
+            const r = getLastFxRate('GBP', isoDate);
+            if (r) rateFooter = `<div class="tt-rate">1 £ = ${r.toFixed(4)} $</div>`;
+          } else {
+            const rEUR = getLastFxRate('EUR', isoDate);
+            const rGBP = getLastFxRate('GBP', isoDate);
+            const parts = [];
+            if (rEUR) parts.push(`1 $ = ${(1 / rEUR).toFixed(4)} €`);
+            if (rGBP) parts.push(`1 $ = ${(1 / rGBP).toFixed(4)} £`);
+            if (parts.length) rateFooter = `<div class="tt-rate">${parts.join('  ·  ')}</div>`;
+          }
+        }
 
         el.innerHTML = `
           <div class="tt-header">
@@ -1487,8 +1536,7 @@
 
     function setCurrency(c) {
       displayCurrency = c;
-      document.getElementById('btn-usd').classList.toggle('active', c === 'USD');
-      document.getElementById('btn-eur').classList.toggle('active', c === 'EUR');
+      document.getElementById('currency-select').value = c;
 
       // Rebuild global mcap charts (titles update inside rebuildGlobalChart via fmtVal)
       rebuildGlobalChart('mcap-token');
@@ -1997,9 +2045,8 @@
       document.getElementById('btn-light').classList.toggle('active', savedTheme === 'light');
       document.getElementById('btn-dark').classList.toggle('active',  savedTheme === 'dark');
 
-      // Sync currency buttons
-      document.getElementById('btn-usd').classList.toggle('active', displayCurrency === 'USD');
-      document.getElementById('btn-eur').classList.toggle('active', displayCurrency === 'EUR');
+      // Sync currency dropdown
+      document.getElementById('currency-select').value = displayCurrency;
 
       buildKpiCards();
       buildGlobalCharts();
