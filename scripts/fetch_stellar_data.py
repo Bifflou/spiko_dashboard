@@ -146,8 +146,9 @@ def apply_events_to_balances(events, balances):
             balances[frm] = balances.get(frm, 0) - amount
             balances[to]  = balances.get(to,  0) + amount
 
-        elif etype == 'mint' and len(topics) >= 3:
-            to = topics[2]
+        elif etype == 'mint' and len(topics) >= 2:
+            # SEP-41 mint: topics = ["mint", to_address] (2 elements only)
+            to = topics[1]
             balances[to] = balances.get(to, 0) + amount
 
         elif etype == 'burn' and len(topics) >= 2:
