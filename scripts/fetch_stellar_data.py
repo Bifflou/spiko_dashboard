@@ -8,7 +8,7 @@ Strategy:
 - Event types: transfer, mint, burn, clawback — applied to a balance map
 - Supply = sum of positive balances after all events
 - Holders = count of addresses with positive balance
-- FX: frankfurter.app for EUR/GBP/CHF → USD
+- FX: loaded from data/fx_rates.json (pre-fetched by fetch_fx_rates.py)
 """
 
 import base64
@@ -17,6 +17,7 @@ import os
 import requests
 import struct
 import time
+import traceback
 from collections import defaultdict
 from datetime import datetime, timezone
 
@@ -77,16 +78,33 @@ def decode_amount(body_xdr):
 
 # ── stellar.expert events ──────────────────────────────────────────────────────
 
+def fetch_page(url, params=None, retries=4, base_delay=5):
+    """Fetch one page with exponential-backoff retry."""
+    for attempt in range(retries):
+        try:
+            resp = requests.get(url, params=params, timeout=60)
+            resp.raise_for_status()
+            return resp.json()
+        except requests.RequestException as e:
+            wait = base_delay * (2 ** attempt)
+            print(f'    [stellar.expert] attempt {attempt+1}/{retries} failed: {e}')
+            if attempt < retries - 1:
+                print(f'    Retrying in {wait}s…')
+                time.sleep(wait)
+            else:
+                print(f'    All {retries} attempts failed — giving up on this page.')
+                return None
+
 def fetch_all_events(contract_address, cursor=None):
     """
     Fetch all contract events from stellar.expert in ascending order.
     Resumes from `cursor` if provided.
     Returns (events_list, last_paging_token).
     """
-    all_events     = []
-    last_token     = cursor
-    url            = f"{EXPERT_BASE}/explorer/public/contract/{contract_address}/events"
-    params         = {'order': 'asc', 'limit': 1000}
+    all_events = []
+    last_token = cursor
+    url        = f"{EXPERT_BASE}/explorer/public/contract/{contract_address}/events"
+    params     = {'order': 'asc', 'limit': 200}
     if cursor:
         params['cursor'] = cursor
 
@@ -94,14 +112,11 @@ def fetch_all_events(contract_address, cursor=None):
     page       = 1
 
     while True:
-        try:
-            resp = requests.get(url, params=(params if use_params else None), timeout=30)
-            resp.raise_for_status()
-        except requests.RequestException as e:
-            print(f'    [stellar.expert] error page {page}: {e}')
+        data = fetch_page(url, params=(params if use_params else None))
+        if data is None:
+            print(f'    Stopped at page {page} due to repeated errors.')
             break
 
-        data    = resp.json()
         records = data.get('_embedded', {}).get('records', [])
         all_events.extend(records)
         if records:
@@ -115,7 +130,7 @@ def fetch_all_events(contract_address, cursor=None):
         url        = f"{EXPERT_BASE}{next_href}"
         use_params = False
         page      += 1
-        time.sleep(0.15)
+        time.sleep(0.5)
 
     return all_events, last_token
 
@@ -187,15 +202,14 @@ def build_daily_snapshots(events, balances):
     return supply_history, holders_history
 
 
-# ── FX rates & marketcap ───────────────────────────────────────────────────────
-
-def fetch_fx_rates_for_currency(currency, start_date):
-    url  = f"https://api.frankfurter.app/{start_date}.."
-    resp = requests.get(url, params={'from': currency, 'to': 'USD'}, timeout=30)
-    resp.raise_for_status()
-    return {d: r['USD'] for d, r in resp.json().get('rates', {}).items()}
+# ── Marketcap computation ──────────────────────────────────────────────────────
 
 def compute_marketcap(supply_history, currency, fx_rates):
+    """
+    fx_rates: {date: usd_per_unit} — loaded from data/fx_rates.json.
+    For USD tokens, supply IS the USD value (1:1).
+    For other currencies, multiply supply by the FX rate.
+    """
     if currency == 'USD':
         return [
             {'date': item['date'], 'marketcap': round(item['supply'], 2), 'supply': round(item['supply'], 2)}
@@ -219,7 +233,7 @@ def compute_marketcap(supply_history, currency, fx_rates):
 
 # ── Per-token processing ───────────────────────────────────────────────────────
 
-def process_token(token_id, contract_address, currency, today, fx_cache):
+def process_token(token_id, contract_address, currency, fx_rates_all):
     print(f'\n[{token_id.upper()} — {contract_address[:12]}…]')
 
     state_file   = f'data/{token_id}_stellar_state.json'
@@ -235,7 +249,7 @@ def process_token(token_id, contract_address, currency, today, fx_cache):
 
     print(f'  Fetching events from stellar.expert (cursor={cursor})…')
     new_events, new_cursor = fetch_all_events(contract_address, cursor=cursor)
-    print(f'  {len(new_events)} new events')
+    print(f'  {len(new_events)} new events fetched')
 
     if not new_events and not existing_mcap:
         print('  No events and no existing data — skipping.')
@@ -260,16 +274,12 @@ def process_token(token_id, contract_address, currency, today, fx_cache):
         print('  No supply data yet.')
         return
 
-    # FX rates
-    if currency not in fx_cache:
-        start_date = merged_raw[0]['date']
-        if currency == 'USD':
-            fx_cache['USD'] = {}
-        else:
-            print(f'  Fetching {currency}/USD rates from {start_date}…')
-            fx_cache[currency] = fetch_fx_rates_for_currency(currency, start_date)
+    # FX rates — use pre-loaded data/fx_rates.json (no extra HTTP calls)
+    fx_rates = fx_rates_all.get(currency, {}) if currency != 'USD' else {}
+    if currency != 'USD' and not fx_rates:
+        print(f'  WARNING: no FX rates found for {currency} in data/fx_rates.json')
 
-    mcap_history = compute_marketcap(merged_raw, currency, fx_cache.get(currency, {}))
+    mcap_history = compute_marketcap(merged_raw, currency, fx_rates)
 
     save_json(state_file, {
         'last_paging_token': new_cursor or cursor,
@@ -284,17 +294,24 @@ def process_token(token_id, contract_address, currency, today, fx_cache):
 
 def main():
     os.makedirs('data', exist_ok=True)
-    today    = datetime.now(timezone.utc).strftime('%Y-%m-%d')
-    fx_cache = {}
+    today = datetime.now(timezone.utc).strftime('%Y-%m-%d')
+
+    # Load FX rates pre-fetched by fetch_fx_rates.py (EUR/GBP/CHF → USD)
+    fx_rates_all = load_json('data/fx_rates.json', default={})
+    if fx_rates_all:
+        print(f'Loaded FX rates: {list(fx_rates_all.keys())}')
+    else:
+        print('WARNING: data/fx_rates.json not found or empty — non-USD mcap will be unavailable')
 
     print(f'=== Fetching Spiko Stellar data — {today} ===')
 
     for token_id, (contract_address, currency) in TOKENS.items():
         try:
-            process_token(token_id, contract_address, currency, today, fx_cache)
+            process_token(token_id, contract_address, currency, fx_rates_all)
         except Exception as e:
             print(f'  ERROR for {token_id}: {e}')
-        time.sleep(0.5)
+            traceback.print_exc()
+        time.sleep(2)
 
     print('\n=== Done — Stellar ===')
 

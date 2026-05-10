@@ -26,7 +26,7 @@ def save_json(path, data):
 
 
 def fetch_rates_since(currency, since_date):
-    url  = f"https://api.frankfurter.app/{since_date}.."
+    url  = f"https://api.frankfurter.dev/v1/{since_date}.."
     resp = requests.get(url, params={'from': currency, 'to': 'USD'}, timeout=30)
     resp.raise_for_status()
     return {d: r['USD'] for d, r in resp.json().get('rates', {}).items()}
