@@ -37,8 +37,6 @@ Supply is denominated in the token's native currency (1:1 backing):
 
 ## Stellar token decimal precision
 
-Not all Stellar tokens use the standard 7 decimal places. See `STELLAR_SCALES` in `scripts/fetch_stellar_data.py`:
-- Default: `10 ** 7`
-- `uktbl`: `10 ** 5` (Stellar Asset Contract / SAC with 5 decimals — confirmed 2026-05-10)
-
-If a token's Stellar supply appears ~100× too small vs on-chain data, check its decimal precision.
+All 9 Spiko Stellar tokens are Stellar Asset Contracts (SAC) with **5 decimal places** (`10^5`).
+Confirmed 2026-05-10 via Soroban RPC `getLedgerEntries` reading each contract's METADATA storage entry.
+`STELLAR_SCALE_DEFAULT = 10 ** 5` in `scripts/fetch_stellar_data.py`.
