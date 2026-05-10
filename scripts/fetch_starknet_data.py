@@ -301,6 +301,7 @@ def process_token(token_id, contract_address, currency, fx_rates_all, block_ts_c
             print('  No new events — carrying forward today.')
             merged_raw  = [{'date': pt['date'], 'supply': pt['supply']} for pt in existing_mcap]
             merged_hold = list(existing_holders)
+            last_block  = from_block
         else:
             # Determine cut date for merging
             first_new_bn   = new_events[0]['block_number']
