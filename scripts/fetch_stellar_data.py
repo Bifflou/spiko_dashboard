@@ -21,8 +21,14 @@ import traceback
 from collections import defaultdict
 from datetime import datetime, timezone
 
-EXPERT_BASE   = "https://api.stellar.expert"
-STELLAR_SCALE = 10 ** 7
+EXPERT_BASE           = "https://api.stellar.expert"
+STELLAR_SCALE_DEFAULT = 10 ** 7
+
+# Tokens that use fewer than 7 decimal places on Stellar.
+# UKTBL is a Stellar Asset Contract (SAC) with 5 decimals.
+STELLAR_SCALES = {
+    'uktbl': 10 ** 5,
+}
 
 TOKENS = {
     'eutbl':    ('CBGV2QFQBBGEQRUKUMCPO3SZOHDDYO6SCP5CH6TW7EALKVHCXTMWDDOF', 'EUR'),
@@ -179,7 +185,7 @@ def apply_events_to_balances(events, balances):
             balances[frm] = balances.get(frm, 0) - amount
 
 
-def build_daily_snapshots(events, balances):
+def build_daily_snapshots(events, balances, scale=STELLAR_SCALE_DEFAULT):
     """
     Apply events chronologically, grouped by date, and emit daily supply/holders.
     """
@@ -194,7 +200,7 @@ def build_daily_snapshots(events, balances):
 
     for date in sorted(events_by_date.keys()):
         apply_events_to_balances(events_by_date[date], balances)
-        supply  = sum(v for v in balances.values() if v > 0) / STELLAR_SCALE
+        supply  = sum(v for v in balances.values() if v > 0) / scale
         holders = sum(1 for v in balances.values() if v > 0)
         supply_history.append({'date': date, 'supply': round(supply, 7)})
         holders_history.append({'date': date, 'holders': holders})
@@ -235,6 +241,7 @@ def compute_marketcap(supply_history, currency, fx_rates):
 
 def process_token(token_id, contract_address, currency, fx_rates_all):
     print(f'\n[{token_id.upper()} — {contract_address[:12]}…]')
+    scale = STELLAR_SCALES.get(token_id, STELLAR_SCALE_DEFAULT)
 
     state_file   = f'data/{token_id}_stellar_state.json'
     mcap_file    = f'data/{token_id}_stellar_marketcap.json'
@@ -260,7 +267,7 @@ def process_token(token_id, contract_address, currency, fx_rates_all):
             new_events[0].get('ts', 0), tz=timezone.utc
         ).strftime('%Y-%m-%d')
 
-        new_supply, new_holders = build_daily_snapshots(new_events, balances)
+        new_supply, new_holders = build_daily_snapshots(new_events, balances, scale=scale)
 
         kept_mcap    = [pt for pt in existing_mcap    if pt['date'] < first_new_date]
         kept_holders = [pt for pt in existing_holders if pt['date'] < first_new_date]
