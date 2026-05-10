@@ -277,6 +277,13 @@ def process_token(token_id, contract_address, currency, fx_rates_all):
         print('  No supply data yet.')
         return
 
+    today = datetime.now(timezone.utc).strftime('%Y-%m-%d')
+    if merged_raw[-1]['date'] < today:
+        current_supply  = sum(v for v in balances.values() if v > 0) / scale
+        current_holders = sum(1 for v in balances.values() if v > 0)
+        merged_raw.append({'date': today, 'supply': round(current_supply, 7)})
+        merged_hold.append({'date': today, 'holders': current_holders})
+
     # FX rates — use pre-loaded data/fx_rates.json (no extra HTTP calls)
     fx_rates = fx_rates_all.get(currency, {}) if currency != 'USD' else {}
     if currency != 'USD' and not fx_rates:

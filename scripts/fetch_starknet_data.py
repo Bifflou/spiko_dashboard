@@ -298,22 +298,23 @@ def process_token(token_id, contract_address, currency, fx_rates_all, block_ts_c
         print(f'  {len(new_events)} new events')
 
         if not new_events:
-            print('  No new events — skipping.')
-            return
+            print('  No new events — carrying forward today.')
+            merged_raw  = [{'date': pt['date'], 'supply': pt['supply']} for pt in existing_mcap]
+            merged_hold = list(existing_holders)
+        else:
+            # Determine cut date for merging
+            first_new_bn   = new_events[0]['block_number']
+            if first_new_bn not in block_ts_cache:
+                block_ts_cache[first_new_bn] = get_block_timestamp(first_new_bn)
+            first_new_date = datetime.fromtimestamp(block_ts_cache[first_new_bn], tz=timezone.utc).strftime('%Y-%m-%d')
 
-        # Determine cut date for merging
-        first_new_bn   = new_events[0]['block_number']
-        if first_new_bn not in block_ts_cache:
-            block_ts_cache[first_new_bn] = get_block_timestamp(first_new_bn)
-        first_new_date = datetime.fromtimestamp(block_ts_cache[first_new_bn], tz=timezone.utc).strftime('%Y-%m-%d')
+            new_supply, new_holders = build_daily_snapshots(new_events, balances, decimals, block_ts_cache)
 
-        new_supply, new_holders = build_daily_snapshots(new_events, balances, decimals, block_ts_cache)
-
-        kept_mcap    = [pt for pt in existing_mcap    if pt['date'] < first_new_date]
-        kept_holders = [pt for pt in existing_holders if pt['date'] < first_new_date]
-        merged_raw   = [{'date': pt['date'], 'supply': pt['supply']} for pt in kept_mcap] + new_supply
-        merged_hold  = kept_holders + new_holders
-        last_block   = new_events[-1]['block_number']
+            kept_mcap    = [pt for pt in existing_mcap    if pt['date'] < first_new_date]
+            kept_holders = [pt for pt in existing_holders if pt['date'] < first_new_date]
+            merged_raw   = [{'date': pt['date'], 'supply': pt['supply']} for pt in kept_mcap] + new_supply
+            merged_hold  = kept_holders + new_holders
+            last_block   = new_events[-1]['block_number']
 
     else:
         print('  Full fetch from genesis…')
@@ -331,6 +332,13 @@ def process_token(token_id, contract_address, currency, fx_rates_all, block_ts_c
     if not merged_raw:
         print('  No supply data.')
         return
+
+    today = datetime.now(timezone.utc).strftime('%Y-%m-%d')
+    if merged_raw[-1]['date'] < today:
+        current_supply  = sum(v for v in balances.values() if v > 0) / (10 ** decimals)
+        current_holders = sum(1 for v in balances.values() if v > 0)
+        merged_raw.append({'date': today, 'supply': round(current_supply, 7)})
+        merged_hold.append({'date': today, 'holders': current_holders})
 
     fx_rates = fx_rates_all.get(currency, {}) if currency != 'USD' else {}
     mcap_history = compute_marketcap(merged_raw, currency, fx_rates)

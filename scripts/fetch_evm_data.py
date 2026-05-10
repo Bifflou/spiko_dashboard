@@ -262,19 +262,21 @@ def process_token(cfg, chain_name, token_id, token_address, currency, fx_rates_a
         print(f'    {len(overlap_logs)} overlap, {len(truly_new_logs)} truly new')
 
         if not truly_new_logs:
-            print(f'    No new logs — skipping.')
-            return
+            print(f'    No new logs — carrying forward today.')
+            merged_raw  = [{'date': pt['date'], 'supply': pt['supply']} for pt in existing_mcap]
+            merged_hold = list(existing_holders)
+            new_last_block = last_block
+        else:
+            first_new_ts   = int(truly_new_logs[0]['timeStamp'], 16)
+            first_new_date = datetime.fromtimestamp(first_new_ts, tz=timezone.utc).strftime('%Y-%m-%d')
+            new_supply, new_holders = build_daily_snapshots(truly_new_logs, balances, decimals)
 
-        first_new_ts   = int(truly_new_logs[0]['timeStamp'], 16)
-        first_new_date = datetime.fromtimestamp(first_new_ts, tz=timezone.utc).strftime('%Y-%m-%d')
-        new_supply, new_holders = build_daily_snapshots(truly_new_logs, balances, decimals)
+            kept_mcap    = [pt for pt in existing_mcap    if pt['date'] < first_new_date]
+            kept_holders = [pt for pt in existing_holders if pt['date'] < first_new_date]
+            merged_raw   = [{'date': pt['date'], 'supply': pt['supply']} for pt in kept_mcap] + new_supply
+            merged_hold  = kept_holders + new_holders
 
-        kept_mcap    = [pt for pt in existing_mcap    if pt['date'] < first_new_date]
-        kept_holders = [pt for pt in existing_holders if pt['date'] < first_new_date]
-        merged_raw   = [{'date': pt['date'], 'supply': pt['supply']} for pt in kept_mcap] + new_supply
-        merged_hold  = kept_holders + new_holders
-
-        new_last_block = max(int(l['blockNumber'], 16) for l in fetched_logs)
+            new_last_block = max(int(l['blockNumber'], 16) for l in fetched_logs)
 
     else:
         print(f'    Full fetch from genesis...')
@@ -293,6 +295,13 @@ def process_token(cfg, chain_name, token_id, token_address, currency, fx_rates_a
     if not merged_raw:
         print(f'    No supply data.')
         return
+
+    today = datetime.now(timezone.utc).strftime('%Y-%m-%d')
+    if merged_raw[-1]['date'] < today:
+        current_supply  = sum(v for v in balances.values() if v > 0) / (10 ** decimals)
+        current_holders = sum(1 for v in balances.values() if v > 0)
+        merged_raw.append({'date': today, 'supply': round(current_supply, 7)})
+        merged_hold.append({'date': today, 'holders': current_holders})
 
     fx_rates = fx_rates_all.get(currency, {}) if currency != 'USD' else {}
     mcap_history = compute_marketcap(merged_raw, currency, fx_rates)
