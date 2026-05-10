@@ -140,12 +140,6 @@ def build_daily_snapshots(logs, balances, decimals):
 
 # ── FX rates & marketcap ───────────────────────────────────────────────────────
 
-def fetch_fx_rates_for_currency(currency, start_date):
-    url  = f"https://api.frankfurter.app/{start_date}.."
-    resp = requests.get(url, params={'from': currency, 'to': 'USD'}, timeout=30)
-    resp.raise_for_status()
-    return {d: r['USD'] for d, r in resp.json().get('rates', {}).items()}
-
 def compute_marketcap(supply_history, currency, fx_rates):
     if currency == 'USD':
         return [
@@ -170,7 +164,7 @@ def compute_marketcap(supply_history, currency, fx_rates):
 
 # ── Per-token processing ───────────────────────────────────────────────────────
 
-def process_token(token_id, token_address, currency, fx_cache):
+def process_token(token_id, token_address, currency, fx_rates_all):
     print(f'\n[{token_id.upper()} on ETHERLINK — {token_address[:10]}…]')
 
     state_file   = f'data/{token_id}_{CHAIN_NAME}_state.json'
@@ -227,15 +221,8 @@ def process_token(token_id, token_address, currency, fx_cache):
         print('  No supply data.')
         return
 
-    if currency not in fx_cache:
-        start_date = merged_raw[0]['date']
-        if currency == 'USD':
-            fx_cache['USD'] = {}
-        else:
-            print(f'  Fetching {currency}/USD rates from {start_date}...')
-            fx_cache[currency] = fetch_fx_rates_for_currency(currency, start_date)
-
-    mcap_history = compute_marketcap(merged_raw, currency, fx_cache.get(currency, {}))
+    fx_rates = fx_rates_all.get(currency, {}) if currency != 'USD' else {}
+    mcap_history = compute_marketcap(merged_raw, currency, fx_rates)
 
     save_json(state_file, {
         'last_block': new_last_block,
@@ -252,11 +239,11 @@ def main():
     os.makedirs('data', exist_ok=True)
     print('=== Fetching Spiko Etherlink data ===')
 
-    fx_cache = {}
+    fx_rates_all = load_json('data/fx_rates.json', default={})
 
     for token_id, (token_address, currency) in TOKENS.items():
         try:
-            process_token(token_id, token_address, currency, fx_cache)
+            process_token(token_id, token_address, currency, fx_rates_all)
         except Exception as e:
             print(f'  ERROR for {token_id}: {e}')
         time.sleep(0.5)

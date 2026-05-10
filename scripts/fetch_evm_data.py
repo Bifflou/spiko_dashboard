@@ -213,13 +213,6 @@ def build_daily_snapshots(logs, balances, decimals):
 
 # ── FX rates & marketcap ───────────────────────────────────────────────────────
 
-def fetch_fx_rates_for_currency(currency, start_date):
-    """Returns {date: usd_rate} for the given non-USD currency."""
-    url  = f"https://api.frankfurter.app/{start_date}.."
-    resp = requests.get(url, params={'from': currency, 'to': 'USD'}, timeout=30)
-    resp.raise_for_status()
-    return {d: r['USD'] for d, r in resp.json().get('rates', {}).items()}
-
 def compute_marketcap(supply_history, currency, fx_rates_for_currency):
     if currency == 'USD':
         return [
@@ -245,7 +238,7 @@ def compute_marketcap(supply_history, currency, fx_rates_for_currency):
 
 # ── Per-token processing ───────────────────────────────────────────────────────
 
-def process_token(cfg, chain_name, token_id, token_address, currency, fx_cache):
+def process_token(cfg, chain_name, token_id, token_address, currency, fx_rates_all):
     state_file   = f'data/{token_id}_{chain_name}_state.json'
     mcap_file    = f'data/{token_id}_{chain_name}_marketcap.json'
     holders_file = f'data/{token_id}_{chain_name}_holders.json'
@@ -301,17 +294,8 @@ def process_token(cfg, chain_name, token_id, token_address, currency, fx_cache):
         print(f'    No supply data.')
         return
 
-    # Fetch FX rates if not already cached for this currency
-    if currency not in fx_cache:
-        start_date = merged_raw[0]['date']
-        print(f'    Fetching {currency}/USD rates from {start_date}...')
-        if currency == 'USD':
-            fx_cache['USD'] = {}
-        else:
-            fx_cache[currency] = fetch_fx_rates_for_currency(currency, start_date)
-        print(f'    {len(fx_cache.get(currency, {}))} rate entries')
-
-    mcap_history = compute_marketcap(merged_raw, currency, fx_cache.get(currency, {}))
+    fx_rates = fx_rates_all.get(currency, {}) if currency != 'USD' else {}
+    mcap_history = compute_marketcap(merged_raw, currency, fx_rates)
 
     save_json(state_file, {
         'last_block': new_last_block,
@@ -337,12 +321,12 @@ def main():
     print(f'=== Fetching Spiko data — {chain_name.upper()} (chain_id={cfg["chain_id"]}) ===')
     os.makedirs('data', exist_ok=True)
 
-    fx_cache = {}  # currency → {date: usd_rate}, populated lazily per token
+    fx_rates_all = load_json('data/fx_rates.json', default={})
 
     for token_id, (token_address, currency) in tokens.items():
         print(f'\n[{token_id.upper()} on {chain_name.upper()}]')
         try:
-            process_token(cfg, chain_name, token_id, token_address, currency, fx_cache)
+            process_token(cfg, chain_name, token_id, token_address, currency, fx_rates_all)
         except Exception as e:
             print(f'  ERROR processing {token_id}: {e}')
         time.sleep(0.5)
