@@ -892,6 +892,15 @@
       if (displayCurrency === 'CHF') return fmtCHF(v);
       return fmtUSD(v);
     }
+    // Compact formatter for pie chart labels (prevents clipping of long values)
+    function fmtMcapPie(v) {
+      const sym = displayCurrency === 'EUR' ? '€' : displayCurrency === 'GBP' ? '£' : displayCurrency === 'CHF' ? '₣' : '$';
+      if (v >= 1e9) return sym + (v / 1e9).toFixed(2) + 'B';
+      if (v >= 1e6) return sym + (v / 1e6).toFixed(1) + 'M';
+      if (v >= 1e3) return sym + (v / 1e3).toFixed(0) + 'K';
+      return sym + Math.round(v);
+    }
+    const fmtHPie = v => fmtSpaced(v);  // holders without " holders" suffix
     function fmtAxisMcap(v) {
       if (displayCurrency === 'EUR') return fmtAxisEUR(v);
       if (displayCurrency === 'GBP') return fmtAxisGBP(v);
@@ -1164,7 +1173,8 @@
       });
     }
 
-    function buildPieChart(canvasId, seriesArr, chains, valueKey, fmtVal, transformFn) {
+    function buildPieChart(canvasId, seriesArr, chains, valueKey, fmtVal, transformFn, fmtPieLabel) {
+      const labelFmt = fmtPieLabel || fmtVal;
       const ctx     = document.getElementById(canvasId).getContext('2d');
       const chartId = canvasId.replace(/^chart-/, '');
       const saved   = hiddenStates[chartId] || {};
@@ -1183,7 +1193,7 @@
           const FONT    = 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
           const MIN_GAP = 44;
           const TICK    = 10;
-          const REACH   = 1.2;
+          const REACH   = 1.0;
           // Total only counts visible (non-hidden) items
           const total   = data.datasets[0].data.reduce((s, v, i) => chart.getDataVisibility(i) ? s + v : s, 0);
 
@@ -1240,7 +1250,7 @@
             c.fillText(label, tx, adjY - 3);
             c.font = `bold 13px ${FONT}`;
             c.fillStyle = cv('--text');
-            c.fillText(fmtVal(value), tx, adjY + 12);
+            c.fillText(labelFmt(value), tx, adjY + 12);
             c.font = `11px ${FONT}`;
             c.fillStyle = cv('--text-mute');
             c.fillText(total > 0 ? (value / total * 100).toFixed(1) + '%' : '', tx, adjY + 26);
@@ -1497,10 +1507,10 @@
     const fmtAxisH = v => fmtSpaced(v);
 
     const globalData = {
-      'mcap-token':    { mode: 'line', chart: null, chains: null, seriesArr: null, fmtVal: fmtUSD, fmtAxis: fmtAxisUSD },
-      'mcap-chain':    { mode: 'line', chart: null, chains: null, seriesArr: null, fmtVal: fmtUSD, fmtAxis: fmtAxisUSD },
-      'holders-token': { mode: 'line', chart: null, chains: null, seriesArr: null, fmtVal: fmtH,   fmtAxis: fmtAxisH   },
-      'holders-chain': { mode: 'line', chart: null, chains: null, seriesArr: null, fmtVal: fmtH,   fmtAxis: fmtAxisH   },
+      'mcap-token':    { mode: 'line', chart: null, chains: null, seriesArr: null, fmtVal: fmtUSD, fmtAxis: fmtAxisUSD, fmtPie: fmtMcapPie },
+      'mcap-chain':    { mode: 'line', chart: null, chains: null, seriesArr: null, fmtVal: fmtUSD, fmtAxis: fmtAxisUSD, fmtPie: fmtMcapPie },
+      'holders-token': { mode: 'line', chart: null, chains: null, seriesArr: null, fmtVal: fmtH,   fmtAxis: fmtAxisH,   fmtPie: fmtHPie   },
+      'holders-chain': { mode: 'line', chart: null, chains: null, seriesArr: null, fmtVal: fmtH,   fmtAxis: fmtAxisH,   fmtPie: fmtHPie   },
     };
 
     function rebuildGlobalChart(id) {
@@ -1536,7 +1546,7 @@
         d.chart = buildLineChart(canvasId, buildStacked(d.chains, d.seriesArr, 'value', transformFn), d.fmtVal, d.fmtAxis,
           isMcap ? fxRatesData['EUR'] : null);
       } else {
-        d.chart = buildPieChart(canvasId, d.seriesArr, d.chains, 'value', d.fmtVal, transformFn);
+        d.chart = buildPieChart(canvasId, d.seriesArr, d.chains, 'value', d.fmtVal, transformFn, d.fmtPie);
       }
       syncModeButtons(id, d.mode);
     }
@@ -1645,7 +1655,7 @@
           s.mcapChart = buildLineChart(canvasId, buildStacked(chains, s.mcapData, 'marketcap', getMcapTransformFn()), fmtMcapVal, fmtAxisMcap,
             fxRatesData['EUR']);
         } else {
-          s.mcapChart = buildPieChart(canvasId, s.mcapData, chains, 'marketcap', fmtMcapVal, getMcapTransformFn());
+          s.mcapChart = buildPieChart(canvasId, s.mcapData, chains, 'marketcap', fmtMcapVal, getMcapTransformFn(), fmtMcapPie);
         }
       } else {
         if (s.holdersChart) { s.holdersChart.destroy(); s.holdersChart = null; }
