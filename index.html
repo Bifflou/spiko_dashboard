@@ -22,43 +22,43 @@
 
     :root {
       /* ── Layout ── */
-      --bg:        #05091A;
-      --bg-card:   #09112B;
-      --bg-deep:   #060C20;
-      --border:    #182044;
-      --border-hi: #243060;
-      /* ── Brand ── */
-      --brand:     #2563EB;
-      --brand-dim:  rgba(37,99,235,0.12);
-      --brand-dim2: rgba(37,99,235,0.22);
+      --bg:        #04081A;
+      --bg-card:   #080F28;
+      --bg-deep:   #050A1C;
+      --border:    #141E40;
+      --border-hi: #1E2E58;
+      /* ── Brand (Spiko blue) ── */
+      --brand:      #1A6FFF;
+      --brand-dim:  rgba(26,111,255,0.13);
+      --brand-dim2: rgba(26,111,255,0.24);
       /* ── Text ── */
-      --text:      #EEF0FF;
-      --text-sec:  #A8B8D8;
-      --text-mute: #7888B0;
+      --text:      #EDF0FF;
+      --text-sec:  #96AACC;
+      --text-mute: #637096;
       /* ── Status ── */
-      --green:     #2EA87A;
-      --red-neg:   #E2001A;
-      --red:       #E2001A;
-      --red-dim:   rgba(226,0,26,0.12);
-      --red-dim2:  rgba(226,0,26,0.22);
+      --green:     #22C07A;
+      --red-neg:   #EF3340;
+      --red:       #EF3340;
+      --red-dim:   rgba(239,51,64,0.12);
+      --red-dim2:  rgba(239,51,64,0.22);
       /* ── Chart-specific ── */
-      --chart-bg:    #0C1330;
-      --pie-border:  #161b22;
-      --row-hover:   rgba(255,255,255,0.03);
+      --chart-bg:   #080F28;
+      --pie-border: #0E1530;
+      --row-hover:  rgba(26,111,255,0.04);
     }
 
     [data-theme="light"] {
-      --bg:        #EFF2FA;
+      --bg:        #F5F8FF;
       --bg-card:   #FFFFFF;
-      --bg-deep:   #E4E9F6;
-      --border:    #CDD5EC;
-      --border-hi: #A8BAD8;
-      --text:      #080C22;
-      --text-sec:  #344070;
-      --text-mute: #6878A8;
+      --bg-deep:   #EBF0FF;
+      --border:    #D6DEF5;
+      --border-hi: #B0BEDD;
+      --text:      #09101F;
+      --text-sec:  #2C3D6E;
+      --text-mute: #5B6E9A;
       --chart-bg:    #FFFFFF;
-      --pie-border:  #EFF2FA;
-      --row-hover:   rgba(0,0,0,0.04);
+      --pie-border:  #F5F8FF;
+      --row-hover:   rgba(26,111,255,0.04);
     }
 
     body {
@@ -354,7 +354,7 @@
       transition: transform 0.25s ease;
       line-height: 1;
     }
-    .row-arrow.open { transform: rotate(90deg); color: var(--red); }
+    .row-arrow.open { transform: rotate(90deg); color: var(--brand); }
 
     /* ── Accordion expand row ─────────────────────────────────────────────── */
     .tracker-expand-row td { padding: 0; border: none; }
@@ -587,7 +587,7 @@
     }
 
     .toggle-btn.active {
-      background: var(--red);
+      background: var(--brand);
       color: #FFFFFF;
     }
 
@@ -1689,7 +1689,7 @@
     const TOKEN_DEFS = [
       {
         id: 'eutbl', name: 'Euro T-Bill', ticker: 'EUTBL',
-        color: '#2563EB',
+        color: '#1A6FFF',
         peg: { symbol: '€', code: 'EUR' },
         issuer: 'Spiko', type: 'Tokenisé', mica: 'Oui', integration: 'Natif',
         logo: './img/eutbl.png', chainDefs: EUTBL_CHAINS,
@@ -1697,7 +1697,7 @@
       },
       {
         id: 'ustbl', name: 'US T-Bill', ticker: 'USTBL',
-        color: '#059669',
+        color: '#10B981',
         peg: { symbol: '$', code: 'USD' },
         issuer: 'Spiko', type: 'Tokenisé', mica: 'Non', integration: 'Natif',
         logo: './img/ustbl.png', chainDefs: USTBL_CHAINS,
@@ -1713,7 +1713,7 @@
       },
       {
         id: 'spkcc', name: 'Spiko Cash USD', ticker: 'SPKCC',
-        color: '#0EA5E9',
+        color: '#38BDF8',
         peg: { symbol: '$', code: 'USD' },
         issuer: 'Spiko', type: 'Tokenisé', mica: 'Non', integration: 'Natif',
         logo: './img/spkcc.png', chainDefs: SPKCC_CHAINS,
@@ -1721,7 +1721,7 @@
       },
       {
         id: 'eurspkcc', name: 'Spiko Cash EUR', ticker: 'eurSPKCC',
-        color: '#0891B2',
+        color: '#0EA5E9',
         peg: { symbol: '€', code: 'EUR' },
         issuer: 'Spiko', type: 'Tokenisé', mica: 'Oui', integration: 'Natif',
         logo: './img/eurspkcc.png', chainDefs: EURSPKCC_CHAINS,
@@ -1737,7 +1737,7 @@
       },
       {
         id: 'eursafo', name: 'Safe Obligations EUR', ticker: 'eurSAFO',
-        color: '#DC2626',
+        color: '#F43F5E',
         peg: { symbol: '€', code: 'EUR' },
         issuer: 'Spiko', type: 'Tokenisé', mica: 'Oui', integration: 'Natif',
         logo: './img/eursafo.png', chainDefs: EURSAFO_CHAINS,
@@ -1753,7 +1753,7 @@
       },
       {
         id: 'chfsafo', name: 'Safe Obligations CHF', ticker: 'chfSAFO',
-        color: '#0F766E',
+        color: '#14B8A6',
         peg: { symbol: 'Fr', code: 'CHF' },
         issuer: 'Spiko', type: 'Tokenisé', mica: 'Non', integration: 'Natif',
         logo: './img/chfsafo.png', chainDefs: CHFSAFO_CHAINS,
