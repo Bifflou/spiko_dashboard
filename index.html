@@ -753,7 +753,7 @@
       </div>
 
     </div>
-    <p class="holders-note">* Les holders peuvent être comptés plusieurs fois si présents sur plusieurs chaînes</p>
+    <p class="holders-note">* Comptage dupliqué : un même wallet sur plusieurs chaînes est compté plusieurs fois</p>
   </div>
 
   <!-- ── Token Tracker ── -->
@@ -1435,7 +1435,7 @@
       document.getElementById('kpi-total-holders').innerHTML = `
         <div class="kpi-label">Total Holders</div>
         <div class="kpi-main">${fmtSpaced(grandHolders)}</div>
-        <div class="kpi-note-tiny">* comptage cross-chaîne non dédupliqué</div>
+        <div class="kpi-note-tiny">* comptage cross-chaîne dupliqué</div>
         <div class="kpi-details">
           ${tokenTotals.filter(t => t.holders > 0).sort((a,b) => b.holders - a.holders).map(t => `
             <div class="kpi-row">
@@ -1917,7 +1917,7 @@
           <td class="td-ticker col-mica">${token.mica || '—'}</td>
           <td class="td-chains col-chains">${chainLogosHtml}</td>
           <td class="td-ticker col-integration">${token.integration || '—'}</td>
-          <td class="td-holders col-holders" title="* Comptage non dédupliqué cross-chaîne">${fmtSpaced(token.holders)}<span class="holders-star">*</span></td>
+          <td class="td-holders col-holders" title="* Comptage cross-chaîne dupliqué">${fmtSpaced(token.holders)}<span class="holders-star">*</span></td>
           <td class="td-mcap col-mcap">${fmtKpiMcap(convertMcapToDisplay(token.mcap), mcapSym)}</td>
           <td class="td-change col-1d">${fmtChg(token.chg1d).html}</td>
           <td class="td-change col-7d">${fmtChg(token.chg7d).html}</td>
