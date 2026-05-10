@@ -1182,7 +1182,8 @@
 
           const FONT    = 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
           const MIN_GAP = 44;
-          const TICK    = 12;
+          const TICK    = 10;
+          const REACH   = 1.2;
           // Total only counts visible (non-hidden) items
           const total   = data.datasets[0].data.reduce((s, v, i) => chart.getDataVisibility(i) ? s + v : s, 0);
 
@@ -1198,9 +1199,9 @@
               value, label: data.labels[i], color: active[i].chain.color, isRight,
               x1:    cx + r * 1.02 * Math.cos(mid),
               y1:    cy + r * 1.02 * Math.sin(mid),
-              xCol:  isRight ? cx + r * 1.38 : cx - r * 1.38,
-              xTick: isRight ? cx + r * 1.38 + TICK : cx - r * 1.38 - TICK,
-              adjY:  cy + r * 1.38 * Math.sin(mid),
+              xCol:  isRight ? cx + r * REACH : cx - r * REACH,
+              xTick: isRight ? cx + r * REACH + TICK : cx - r * REACH - TICK,
+              adjY:  cy + r * REACH * Math.sin(mid),
             });
           });
 
@@ -1275,7 +1276,7 @@
         options: {
           responsive: true,
           maintainAspectRatio: false,
-          layout: { padding: { top: 70, bottom: 70, left: 120, right: 120 } },
+          layout: { padding: { top: 70, bottom: 70, left: 160, right: 160 } },
           // Skip initial animation when restoring hidden state to avoid flash
           animation: hasHiddenState ? false : ANIM_CFG,
           onHover(event, elements, chart) {
