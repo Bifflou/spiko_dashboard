@@ -55,6 +55,26 @@ def save_json(path, data):
     with open(path, 'w') as f:
         json.dump(data, f)
 
+def fill_daily_gaps(series, value_key):
+    """Forward-fill missing dates so there are no gaps in daily series."""
+    if not series:
+        return series
+    from datetime import timedelta
+    result = []
+    by_date = {pt['date']: pt for pt in series}
+    d = datetime.strptime(series[0]['date'], '%Y-%m-%d').date()
+    end = datetime.strptime(series[-1]['date'], '%Y-%m-%d').date()
+    last_val = None
+    while d <= end:
+        ds = d.strftime('%Y-%m-%d')
+        if ds in by_date:
+            result.append(by_date[ds])
+            last_val = by_date[ds][value_key]
+        elif last_val is not None:
+            result.append({'date': ds, value_key: last_val})
+        d += timedelta(days=1)
+    return result
+
 
 # ── Starknet JSON-RPC helpers ──────────────────────────────────────────────────
 
@@ -340,6 +360,9 @@ def process_token(token_id, contract_address, currency, fx_rates_all, block_ts_c
         current_holders = sum(1 for v in balances.values() if v > 0)
         merged_raw.append({'date': today, 'supply': round(current_supply, 7)})
         merged_hold.append({'date': today, 'holders': current_holders})
+
+    merged_raw  = fill_daily_gaps(merged_raw,  'supply')
+    merged_hold = fill_daily_gaps(merged_hold, 'holders')
 
     fx_rates = fx_rates_all.get(currency, {}) if currency != 'USD' else {}
     mcap_history = compute_marketcap(merged_raw, currency, fx_rates)
