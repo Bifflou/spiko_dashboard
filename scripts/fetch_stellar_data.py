@@ -226,36 +226,36 @@ def build_daily_snapshots(events, balances, scale=STELLAR_SCALE_DEFAULT):
 
 # ── Marketcap computation ──────────────────────────────────────────────────────
 
-def compute_marketcap(supply_history, currency, fx_rates):
+def compute_marketcap(supply_history, currency, fx_rates, nav_lookup=None):
     """
-    fx_rates: {date: usd_per_unit} — loaded from data/fx_rates.json.
-    For USD tokens, supply IS the USD value (1:1).
-    For other currencies, multiply supply by the FX rate.
+    nav_lookup: optional {date: nav_float} for tokens with a Chainlink NAV feed.
+    With nav_lookup → marketcap = supply × NAV × fx_rate
+    Without         → marketcap = supply × fx_rate  (1 token = 1 currency unit)
     """
-    if currency == 'USD':
-        return [
-            {'date': item['date'], 'marketcap': round(item['supply'], 2), 'supply': round(item['supply'], 2)}
-            for item in supply_history
-        ]
     result    = []
     last_rate = None
+    last_nav  = None
     for item in supply_history:
-        date = item['date']
-        if date in fx_rates:
-            last_rate = fx_rates[date]
-        if last_rate is None:
-            continue
-        result.append({
-            'date':      date,
-            'marketcap': round(item['supply'] * last_rate, 2),
-            'supply':    round(item['supply'], 2),
-        })
+        date   = item['date']
+        supply = item['supply']
+        if nav_lookup and date in nav_lookup:
+            last_nav = nav_lookup[date]
+        nav = last_nav if last_nav is not None else 1.0
+
+        if currency == 'USD':
+            result.append({'date': date, 'marketcap': round(supply * nav, 2), 'supply': round(supply, 2)})
+        else:
+            if date in fx_rates:
+                last_rate = fx_rates[date]
+            if last_rate is None:
+                continue
+            result.append({'date': date, 'marketcap': round(supply * nav * last_rate, 2), 'supply': round(supply, 2)})
     return result
 
 
 # ── Per-token processing ───────────────────────────────────────────────────────
 
-def process_token(token_id, contract_address, currency, fx_rates_all):
+def process_token(token_id, contract_address, currency, fx_rates_all, nav_lookup=None):
     print(f'\n[{token_id.upper()} — {contract_address[:12]}…]')
     scale = STELLAR_SCALES.get(token_id, STELLAR_SCALE_DEFAULT)
 
@@ -312,7 +312,7 @@ def process_token(token_id, contract_address, currency, fx_rates_all):
     if currency != 'USD' and not fx_rates:
         print(f'  WARNING: no FX rates found for {currency} in data/fx_rates.json')
 
-    mcap_history = compute_marketcap(merged_raw, currency, fx_rates)
+    mcap_history = compute_marketcap(merged_raw, currency, fx_rates, nav_lookup=nav_lookup)
 
     save_json(state_file, {
         'last_paging_token': new_cursor or cursor,
@@ -330,17 +330,23 @@ def main():
     today = datetime.now(timezone.utc).strftime('%Y-%m-%d')
 
     # Load FX rates pre-fetched by fetch_fx_rates.py (EUR/GBP/CHF → USD)
-    fx_rates_all = load_json('data/fx_rates.json', default={})
+    fx_rates_all    = load_json('data/fx_rates.json',    default={})
+    nav_history_all = load_json('data/nav_history.json', default={})
     if fx_rates_all:
         print(f'Loaded FX rates: {list(fx_rates_all.keys())}')
     else:
         print('WARNING: data/fx_rates.json not found or empty — non-USD mcap will be unavailable')
 
+    def build_nav_lookup(tid):
+        s = nav_history_all.get(tid)
+        return {e['date']: e['nav'] for e in s} if s else None
+
     print(f'=== Fetching Spiko Stellar data — {today} ===')
 
     for token_id, (contract_address, currency) in TOKENS.items():
         try:
-            process_token(token_id, contract_address, currency, fx_rates_all)
+            process_token(token_id, contract_address, currency, fx_rates_all,
+                          nav_lookup=build_nav_lookup(token_id))
         except Exception as e:
             print(f'  ERROR for {token_id}: {e}')
             traceback.print_exc()

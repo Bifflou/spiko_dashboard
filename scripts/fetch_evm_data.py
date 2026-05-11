@@ -233,32 +233,44 @@ def build_daily_snapshots(logs, balances, decimals):
 
 # ── FX rates & marketcap ───────────────────────────────────────────────────────
 
-def compute_marketcap(supply_history, currency, fx_rates_for_currency):
-    if currency == 'USD':
-        return [
-            {'date': item['date'], 'marketcap': round(item['supply'], 2), 'supply': round(item['supply'], 2)}
-            for item in supply_history
-        ]
-
+def compute_marketcap(supply_history, currency, fx_rates_for_currency, nav_lookup=None):
+    """
+    nav_lookup: optional {date: nav_float} for tokens with a Chainlink NAV feed.
+    With nav_lookup → marketcap = supply × NAV × fx_rate  (accurate accumulating-token calc)
+    Without         → marketcap = supply × fx_rate        (1 token = 1 currency unit)
+    """
     result    = []
     last_rate = None
+    last_nav  = None
     for item in supply_history:
-        date = item['date']
-        if date in fx_rates_for_currency:
-            last_rate = fx_rates_for_currency[date]
-        if last_rate is None:
-            continue
-        result.append({
-            'date':      date,
-            'marketcap': round(item['supply'] * last_rate, 2),
-            'supply':    round(item['supply'], 2),
-        })
+        date   = item['date']
+        supply = item['supply']
+        if nav_lookup and date in nav_lookup:
+            last_nav = nav_lookup[date]
+        nav = last_nav if last_nav is not None else 1.0
+
+        if currency == 'USD':
+            result.append({
+                'date':      date,
+                'marketcap': round(supply * nav, 2),
+                'supply':    round(supply, 2),
+            })
+        else:
+            if date in fx_rates_for_currency:
+                last_rate = fx_rates_for_currency[date]
+            if last_rate is None:
+                continue
+            result.append({
+                'date':      date,
+                'marketcap': round(supply * nav * last_rate, 2),
+                'supply':    round(supply, 2),
+            })
     return result
 
 
 # ── Per-token processing ───────────────────────────────────────────────────────
 
-def process_token(cfg, chain_name, token_id, token_address, currency, fx_rates_all):
+def process_token(cfg, chain_name, token_id, token_address, currency, fx_rates_all, nav_lookup=None):
     state_file   = f'data/{token_id}_{chain_name}_state.json'
     mcap_file    = f'data/{token_id}_{chain_name}_marketcap.json'
     holders_file = f'data/{token_id}_{chain_name}_holders.json'
@@ -327,7 +339,7 @@ def process_token(cfg, chain_name, token_id, token_address, currency, fx_rates_a
     merged_hold = fill_daily_gaps(merged_hold, 'holders')
 
     fx_rates = fx_rates_all.get(currency, {}) if currency != 'USD' else {}
-    mcap_history = compute_marketcap(merged_raw, currency, fx_rates)
+    mcap_history = compute_marketcap(merged_raw, currency, fx_rates, nav_lookup=nav_lookup)
 
     save_json(state_file, {
         'last_block': new_last_block,
@@ -353,12 +365,20 @@ def main():
     print(f'=== Fetching Spiko data — {chain_name.upper()} (chain_id={cfg["chain_id"]}) ===')
     os.makedirs('data', exist_ok=True)
 
-    fx_rates_all = load_json('data/fx_rates.json', default={})
+    fx_rates_all     = load_json('data/fx_rates.json',     default={})
+    nav_history_all  = load_json('data/nav_history.json',  default={})
+
+    def build_nav_lookup(token_id):
+        series = nav_history_all.get(token_id)
+        if not series:
+            return None
+        return {item['date']: item['nav'] for item in series}
 
     for token_id, (token_address, currency) in tokens.items():
         print(f'\n[{token_id.upper()} on {chain_name.upper()}]')
         try:
-            process_token(cfg, chain_name, token_id, token_address, currency, fx_rates_all)
+            process_token(cfg, chain_name, token_id, token_address, currency,
+                          fx_rates_all, nav_lookup=build_nav_lookup(token_id))
         except Exception as e:
             print(f'  ERROR processing {token_id}: {e}')
         time.sleep(0.5)

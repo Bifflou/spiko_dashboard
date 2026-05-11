@@ -25,6 +25,9 @@ jobs:
       - name: Fetch FX rates (EUR/GBP/CHF → USD)
         run: python scripts/fetch_fx_rates.py
 
+      - name: Fetch NAV history (Chainlink on-chain feeds)
+        run: python scripts/fetch_nav_data.py
+
       - name: Fetch Ethereum data (all 9 tokens)
         env:
           ETHERSCAN_API_KEY: ${{ secrets.ETHERSCAN_API_KEY }}
@@ -53,9 +56,6 @@ jobs:
 
       - name: Fetch Stellar data (all 9 tokens)
         run: python scripts/fetch_stellar_data.py
-
-      - name: Fetch NAV data (Chainlink on-chain feeds)
-        run: python scripts/fetch_nav_data.py
 
       - name: Commit and push
         run: |

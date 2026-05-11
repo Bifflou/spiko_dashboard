@@ -160,31 +160,31 @@ def build_daily_snapshots(logs, balances, decimals):
 
 # ── FX rates & marketcap ───────────────────────────────────────────────────────
 
-def compute_marketcap(supply_history, currency, fx_rates):
-    if currency == 'USD':
-        return [
-            {'date': item['date'], 'marketcap': round(item['supply'], 2), 'supply': round(item['supply'], 2)}
-            for item in supply_history
-        ]
+def compute_marketcap(supply_history, currency, fx_rates, nav_lookup=None):
     result    = []
     last_rate = None
+    last_nav  = None
     for item in supply_history:
-        date = item['date']
-        if date in fx_rates:
-            last_rate = fx_rates[date]
-        if last_rate is None:
-            continue
-        result.append({
-            'date':      date,
-            'marketcap': round(item['supply'] * last_rate, 2),
-            'supply':    round(item['supply'], 2),
-        })
+        date   = item['date']
+        supply = item['supply']
+        if nav_lookup and date in nav_lookup:
+            last_nav = nav_lookup[date]
+        nav = last_nav if last_nav is not None else 1.0
+
+        if currency == 'USD':
+            result.append({'date': date, 'marketcap': round(supply * nav, 2), 'supply': round(supply, 2)})
+        else:
+            if date in fx_rates:
+                last_rate = fx_rates[date]
+            if last_rate is None:
+                continue
+            result.append({'date': date, 'marketcap': round(supply * nav * last_rate, 2), 'supply': round(supply, 2)})
     return result
 
 
 # ── Per-token processing ───────────────────────────────────────────────────────
 
-def process_token(token_id, token_address, currency, fx_rates_all):
+def process_token(token_id, token_address, currency, fx_rates_all, nav_lookup=None):
     print(f'\n[{token_id.upper()} on ETHERLINK — {token_address[:10]}…]')
 
     state_file   = f'data/{token_id}_{CHAIN_NAME}_state.json'
@@ -254,7 +254,7 @@ def process_token(token_id, token_address, currency, fx_rates_all):
     merged_hold = fill_daily_gaps(merged_hold, 'holders')
 
     fx_rates = fx_rates_all.get(currency, {}) if currency != 'USD' else {}
-    mcap_history = compute_marketcap(merged_raw, currency, fx_rates)
+    mcap_history = compute_marketcap(merged_raw, currency, fx_rates, nav_lookup=nav_lookup)
 
     save_json(state_file, {
         'last_block': new_last_block,
@@ -271,11 +271,17 @@ def main():
     os.makedirs('data', exist_ok=True)
     print('=== Fetching Spiko Etherlink data ===')
 
-    fx_rates_all = load_json('data/fx_rates.json', default={})
+    fx_rates_all    = load_json('data/fx_rates.json',    default={})
+    nav_history_all = load_json('data/nav_history.json', default={})
+
+    def build_nav_lookup(tid):
+        s = nav_history_all.get(tid)
+        return {e['date']: e['nav'] for e in s} if s else None
 
     for token_id, (token_address, currency) in TOKENS.items():
         try:
-            process_token(token_id, token_address, currency, fx_rates_all)
+            process_token(token_id, token_address, currency, fx_rates_all,
+                          nav_lookup=build_nav_lookup(token_id))
         except Exception as e:
             print(f'  ERROR for {token_id}: {e}')
         time.sleep(0.5)
