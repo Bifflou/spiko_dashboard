@@ -60,10 +60,8 @@ NAV_FEEDS = {
 
 BATCH_SIZE = 50   # getRoundData calls per JSON-RPC batch request
 
-# Fund launch dates for pre-Chainlink gap filling.
+# Fund launch dates for pre-Chainlink/pre-CoinGecko gap filling.
 # NAV at launch is 1.0 by definition (subscription at par).
-# When Chainlink series starts after launch, we linearly interpolate NAV
-# from (launch_date, 1.0) → (first_chainlink_date, first_chainlink_nav).
 LAUNCH_DATES = {
     "eutbl":    "2024-04-30",
     "ustbl":    "2024-05-14",
@@ -75,6 +73,22 @@ LAUNCH_DATES = {
     "gbpsafo":  "2026-03-19",
     "chfsafo":  "2026-03-19",
 }
+
+# CoinGecko IDs for tokens not covered by Chainlink NAVLink feeds.
+# Preference: Chainlink > CoinGecko (Chainlink is more accurate/official).
+# currency must be a valid CoinGecko vs_currency string.
+CG_BASE_URL = "https://api.coingecko.com/api/v3"
+CG_FEEDS = {
+    "uktbl":    ("spiko-uk-t-bills-money-market-fund",                    "gbp"),
+    "spkcc":    ("spiko-digital-assets-cash-carry-fund",                  "usd"),
+    "eurspkcc": ("spiko-digital-assets-cash-carry-fund-euro-share-class", "eur"),
+    "safo":     ("safo",                                                  "usd"),
+    "eursafo":  ("spiko-amundi-overnight-swap-fund-eur",                  "eur"),
+    "gbpsafo":  ("spiko-amundi-overnight-swap-fund-gbp",                  "gbp"),
+    "chfsafo":  ("spiko-amundi-overnight-swap-fund-chf",                  "chf"),
+}
+CG_HEADERS = {"accept": "application/json", "User-Agent": "Mozilla/5.0"}
+CG_DELAY   = 2.5   # seconds between CoinGecko calls (free tier: 30 req/min)
 
 
 # ── NAV gap-filling ────────────────────────────────────────────────────────────
@@ -277,6 +291,108 @@ def ensure_launch_prefix(token_id, series, launch_date):
     return prefix + series
 
 
+# ── CoinGecko NAV fetching ─────────────────────────────────────────────────────
+
+def cg_fetch_history(cg_id, currency, last_date=None):
+    """
+    Fetch daily NAV history from CoinGecko for a token.
+    Uses market_chart with days=365 (free-tier max).
+    Returns list of {"date": str, "nav": float}, deduplicated to one entry per day.
+
+    last_date: if set, only returns entries AFTER this date (incremental).
+    """
+    url  = f"{CG_BASE_URL}/coins/{cg_id}/market_chart"
+    resp = requests.get(
+        url,
+        params={"vs_currency": currency, "days": 365, "interval": "daily"},
+        headers=CG_HEADERS, timeout=30,
+    )
+    if resp.status_code == 429:
+        print(f"    CoinGecko rate limit hit — sleeping 60s")
+        time.sleep(60)
+        resp = requests.get(url, params={"vs_currency": currency, "days": 365, "interval": "daily"},
+                            headers=CG_HEADERS, timeout=30)
+    if resp.status_code != 200:
+        print(f"    CoinGecko error {resp.status_code} for {cg_id}")
+        return []
+
+    raw_prices = resp.json().get("prices", [])
+    if not raw_prices:
+        return []
+
+    # Deduplicate: one entry per UTC date, keep the last price of the day
+    by_date = {}
+    for ts_ms, price in raw_prices:
+        date = datetime.fromtimestamp(ts_ms / 1000, tz=timezone.utc).strftime("%Y-%m-%d")
+        by_date[date] = round(price, 6)
+
+    entries = [{"date": d, "nav": by_date[d]} for d in sorted(by_date.keys())]
+
+    # Incremental: drop already-known dates
+    if last_date:
+        entries = [e for e in entries if e["date"] > last_date]
+
+    return entries
+
+
+def cg_fetch_current(cg_id, currency):
+    """
+    Return current NAV from CoinGecko /coins/{id} (more up-to-date than market_chart).
+    Returns {"nav": float, "currency": str, "updated": date_str} or None.
+    """
+    resp = requests.get(f"{CG_BASE_URL}/coins/{cg_id}", headers=CG_HEADERS, timeout=20,
+                        params={"localization": "false", "tickers": "false",
+                                "community_data": "false", "developer_data": "false"})
+    if resp.status_code != 200:
+        return None
+    data      = resp.json()
+    price     = data.get("market_data", {}).get("current_price", {}).get(currency)
+    updated   = data.get("last_updated", "")[:10]   # "2026-05-11T..."
+    if price is None:
+        return None
+    return {"nav": round(price, 6), "currency": currency.upper(), "updated": updated}
+
+
+def process_cg_feed(token_id, cg_id, currency, existing_series):
+    """
+    Fetch CoinGecko history, merge with existing_series, apply launch prefix.
+    Returns (merged_series, current_nav_entry | None).
+    """
+    print(f"\n[{token_id.upper()} — CoinGecko / {currency.upper()}]")
+    launch_date = LAUNCH_DATES.get(token_id)
+
+    last_date = existing_series[-1]["date"] if existing_series else None
+    new_entries = cg_fetch_history(cg_id, currency, last_date=last_date)
+    print(f"  {len(new_entries)} new entries from CoinGecko "
+          f"(after {last_date or 'beginning'})")
+
+    if new_entries:
+        merged = existing_series + new_entries
+    else:
+        merged = list(existing_series)
+
+    if not merged:
+        print("  No data available yet.")
+        return [], None
+
+    # Prepend interpolated prefix from launch if gap exists
+    merged = ensure_launch_prefix(token_id, merged, launch_date)
+
+    # Current price (separate call, more up-to-date)
+    time.sleep(CG_DELAY)
+    current = cg_fetch_current(cg_id, currency)
+    if current:
+        print(f"  Current: {current['nav']} {currency.upper()} (updated {current['updated']})")
+        # Ensure latest point is in the series
+        if current["updated"] and (not merged or merged[-1]["date"] < current["updated"]):
+            merged.append({"date": current["updated"], "nav": current["nav"]})
+    else:
+        current = ({"nav": merged[-1]["nav"], "currency": currency.upper(),
+                    "updated": merged[-1]["date"]} if merged else None)
+
+    return merged, current
+
+
 # ── Main ───────────────────────────────────────────────────────────────────────
 
 def main():
@@ -325,6 +441,26 @@ def main():
             import traceback
             print(f"  ERROR for {token_id}: {e}")
             traceback.print_exc()
+
+    # ── CoinGecko section (tokens without Chainlink feed) ──────────────────────
+    print("\n=== Fetching Spiko NAV history (CoinGecko) ===")
+    for token_id, (cg_id, cg_currency) in CG_FEEDS.items():
+        try:
+            series = new_history.get(token_id, [])
+            merged, current_entry = process_cg_feed(
+                token_id, cg_id, cg_currency, series
+            )
+            if merged:
+                new_history[token_id] = merged
+            if current_entry:
+                new_nav[token_id] = current_entry
+            elif token_id not in new_nav:
+                new_nav[token_id] = None
+        except Exception as e:
+            import traceback
+            print(f"  ERROR for {token_id}: {e}")
+            traceback.print_exc()
+        time.sleep(CG_DELAY)
 
     save_json(history_file, new_history)
     save_json(state_file,   new_state)
