@@ -964,8 +964,23 @@
       return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
     }
 
+    // Token launch dates — used to anchor chart timelines to fund inception
+    const TOKEN_LAUNCH_DATES = {
+      eutbl:    '2024-04-30',
+      ustbl:    '2024-05-14',
+      uktbl:    '2025-10-15',
+      spkcc:    '2025-07-24',
+      eurspkcc: '2025-09-29',
+      safo:     '2026-03-19',
+      eursafo:  '2026-03-19',
+      gbpsafo:  '2026-03-19',
+      chfsafo:  '2026-03-19',
+    };
+
     // ── Stacked area helpers ────────────────────────────────────────────────────
-    function buildStacked(chains, seriesArr, valueKey, transformFn) {
+    // minDate: if set, ensures the chart timeline starts at least from this date
+    // (adds it to allDates so chains with no data still show 0 from launch day)
+    function buildStacked(chains, seriesArr, valueKey, transformFn, minDate = null) {
       const paired = chains.map((chain, i) => ({
         chain,
         series: seriesArr[i],
@@ -975,6 +990,8 @@
       paired.sort((a, b) => a.startDate < b.startDate ? -1 : 1);
 
       const dateSet = new Set(paired.flatMap(p => p.series.map(d => d.date)));
+      // Anchor the timeline to the token's launch date (shows 0 before first data)
+      if (minDate) dateSet.add(minDate);
       const allDates = [...dateSet].sort();
 
       const filled = paired.map(({ series, startDate }) => {
@@ -1686,9 +1703,10 @@
 
     // ── Rebuild chart (accordion) ───────────────────────────────────────────────
     function rebuildChart(token, type) {
-      const s      = state[token];
-      const def    = TOKEN_DEFS.find(d => d.id === token);
-      const chains = def ? def.chainDefs : [];
+      const s       = state[token];
+      const def     = TOKEN_DEFS.find(d => d.id === token);
+      const chains  = def ? def.chainDefs : [];
+      const minDate = TOKEN_LAUNCH_DATES[token] || null;
       const canvasId = `chart-${token}-${type}`;
       const canvas = document.getElementById(canvasId);
       if (!canvas) return;
@@ -1698,7 +1716,7 @@
         const wrap = canvas.parentElement;
         wrap.innerHTML = `<canvas id="${canvasId}"></canvas>`;
         if (s.mcapMode === 'line') {
-          s.mcapChart = buildLineChart(canvasId, buildStacked(chains, s.mcapData, 'marketcap', getMcapTransformFn()), fmtMcapVal, fmtAxisMcap,
+          s.mcapChart = buildLineChart(canvasId, buildStacked(chains, s.mcapData, 'marketcap', getMcapTransformFn(), minDate), fmtMcapVal, fmtAxisMcap,
             fxRatesData['EUR']);
         } else {
           s.mcapChart = buildPieChart(canvasId, s.mcapData, chains, 'marketcap', fmtMcapVal, getMcapTransformFn(), fmtMcapPie);
@@ -1710,7 +1728,7 @@
         const fmtVal  = v => fmtSpaced(v) + ' holders';
         const fmtAxis = v => fmtSpaced(v);
         if (s.holdersMode === 'line') {
-          s.holdersChart = buildLineChart(canvasId, buildStacked(chains, s.holdersData, 'holders'), fmtVal, fmtAxis);
+          s.holdersChart = buildLineChart(canvasId, buildStacked(chains, s.holdersData, 'holders', null, minDate), fmtVal, fmtAxis);
         } else {
           s.holdersChart = buildPieChart(canvasId, s.holdersData, chains, 'holders', fmtVal);
         }
