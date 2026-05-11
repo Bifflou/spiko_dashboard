@@ -147,6 +147,50 @@
       font-style: italic;
     }
 
+    /* ── Fees info icon & tooltip ────────────────────────────────────────── */
+    .fee-info {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--brand);
+      color: #fff;
+      font-size: 0.58rem;
+      font-weight: 800;
+      font-style: normal;
+      cursor: default;
+      position: relative;
+      margin-left: 4px;
+      vertical-align: middle;
+      opacity: 0.75;
+      line-height: 1;
+    }
+    .fee-info::after {
+      content: attr(data-tip);
+      position: absolute;
+      bottom: calc(100% + 7px);
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--bg-card);
+      border: 1px solid var(--border-hi);
+      border-radius: 7px;
+      padding: 0.5rem 0.7rem;
+      font-size: 0.72rem;
+      font-weight: 400;
+      color: var(--text);
+      white-space: pre;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.15s;
+      z-index: 200;
+      min-width: 270px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.35);
+    }
+    .fee-info:hover { opacity: 1; }
+    .fee-info:hover::after { opacity: 1; }
+
     /* ── KPI cards ───────────────────────────────────────────────────────── */
     .kpi-grid {
       display: grid;
@@ -768,7 +812,7 @@
             <th class="col-ticker" style="width:72px">Ticker</th>
             <th class="col-peg" style="width:60px">Peg</th>
             <th class="col-type" style="width:96px">Type</th>
-            <th class="col-issuer" style="width:110px">Frais de gestion</th>
+            <th class="col-issuer" style="width:110px">Frais annuel</th>
             <th class="col-mica" style="width:80px">MiCA</th>
             <th class="col-chains" style="width:130px">Chaînes</th>
             <th class="col-integration" style="width:80px">Intégration</th>
@@ -1726,7 +1770,7 @@
         id: 'spkcc', name: 'Spiko Cash USD', ticker: 'SPKCC',
         color: '#38BDF8',
         peg: { symbol: '$', code: 'USD' },
-        fees: '0,10%', feesExtra: '+ 25% surperf. au-dessus du SOFR', type: 'Tokenisé', mica: 'Non', integration: 'Natif',
+        fees: '0,10%', feesExtra: '+ 25% de frais de surperformance annuelle au-dessus du taux sans risque SOFR\n+ 1% de frais MAREX', type: 'Tokenisé', mica: 'Non', integration: 'Natif',
         logo: './img/spkcc.png', chainDefs: SPKCC_CHAINS,
         chainLogos: SPKCC_CHAINS.map(c => ({ src: CHAIN_LOGOS[c.label], label: c.label })),
       },
@@ -1734,7 +1778,7 @@
         id: 'eurspkcc', name: 'Spiko Cash EUR', ticker: 'eurSPKCC',
         color: '#0EA5E9',
         peg: { symbol: '€', code: 'EUR' },
-        fees: '0,10%', feesExtra: '+ 25% surperf. au-dessus de l\'ESTR', type: 'Tokenisé', mica: 'Oui', integration: 'Natif',
+        fees: '0,10%', feesExtra: '+ 25% de frais de surperformance annuelle au-dessus du taux sans risque ESTR\n+ 1% de frais MAREX', type: 'Tokenisé', mica: 'Oui', integration: 'Natif',
         logo: './img/eurspkcc.png', chainDefs: EURSPKCC_CHAINS,
         chainLogos: EURSPKCC_CHAINS.map(c => ({ src: CHAIN_LOGOS[c.label], label: c.label })),
       },
@@ -1924,7 +1968,7 @@
           <td class="td-ticker col-ticker">${token.ticker}</td>
           <td class="td-ticker col-peg">${token.peg ? token.peg.code : '—'}</td>
           <td class="td-ticker col-type">${token.type || '—'}</td>
-          <td class="td-ticker col-issuer">${token.fees || '—'}${token.feesExtra ? `<br><span style="font-size:0.72em;opacity:0.7;font-weight:400">${token.feesExtra}</span>` : ''}</td>
+          <td class="td-ticker col-issuer">${token.fees || '—'}${token.feesExtra ? `<span class="fee-info" data-tip="${token.feesExtra}">i</span>` : ''}</td>
           <td class="td-ticker col-mica">${token.mica || '—'}</td>
           <td class="td-chains col-chains">${chainLogosHtml}</td>
           <td class="td-ticker col-integration">${token.integration || '—'}</td>
