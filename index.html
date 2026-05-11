@@ -815,8 +815,14 @@
 
       paired.sort((a, b) => a.startDate < b.startDate ? -1 : 1);
 
-      const dateSet = new Set(paired.flatMap(p => p.series.map(d => d.date)));
-      const allDates = [...dateSet].sort();
+      // Build a complete daily range (no gaps) between earliest and latest data date
+      const allExisting = paired.flatMap(p => p.series.map(d => d.date));
+      const minDate = allExisting.reduce((a, b) => a < b ? a : b);
+      const maxDate = allExisting.reduce((a, b) => a > b ? a : b);
+      const allDates = [];
+      for (let cur = new Date(minDate + 'T00:00:00Z'), end = new Date(maxDate + 'T00:00:00Z'); cur <= end; cur.setUTCDate(cur.getUTCDate() + 1)) {
+        allDates.push(cur.toISOString().slice(0, 10));
+      }
 
       const filled = paired.map(({ series, startDate }) => {
         const map = Object.fromEntries(series.map(d => [d.date, d[valueKey]]));
