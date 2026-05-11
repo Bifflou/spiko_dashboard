@@ -19,13 +19,19 @@ Other oracles deployed but no data published yet (will activate automatically):
   SPKCC    → 0x99f70a0e1786402a6796c6b0aa997ef340a5c6da  USD
   eurSPKCC → 0x0e389c83bc1d16d86412476f6103027555c03265  EUR
   SAFO / eurSAFO / gbpSAFO / chfSAFO → oracle addresses TBD
+
+Pre-Chainlink gap filling (linear interpolation):
+  For tokens where the Chainlink feed started after fund launch, we interpolate
+  NAV linearly from (launch_date, 1.0) to (first_chainlink_date, first_chainlink_nav).
+  Money market fund NAV growth is quasi-linear (daily accrual ≈ constant yield),
+  so this is an accurate approximation for the gap period.
 """
 
 import json
 import os
 import requests
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 ETH_RPC_CANDIDATES = [
     "https://ethereum.publicnode.com",
@@ -53,6 +59,48 @@ NAV_FEEDS = {
 }
 
 BATCH_SIZE = 50   # getRoundData calls per JSON-RPC batch request
+
+# Fund launch dates for pre-Chainlink gap filling.
+# NAV at launch is 1.0 by definition (subscription at par).
+# When Chainlink series starts after launch, we linearly interpolate NAV
+# from (launch_date, 1.0) → (first_chainlink_date, first_chainlink_nav).
+LAUNCH_DATES = {
+    "eutbl":    "2024-04-30",
+    "ustbl":    "2024-05-14",
+    "uktbl":    "2025-10-15",
+    "spkcc":    "2025-07-24",
+    "eurspkcc": "2025-09-29",
+    "safo":     "2026-03-19",
+    "eursafo":  "2026-03-19",
+    "gbpsafo":  "2026-03-19",
+    "chfsafo":  "2026-03-19",
+}
+
+
+# ── NAV gap-filling ────────────────────────────────────────────────────────────
+
+def build_interpolated_prefix(launch_date_str, first_chainlink_date_str, first_chainlink_nav):
+    """
+    Return a list of {date, nav} entries covering [launch_date, first_chainlink_date)
+    using linear interpolation from 1.0 → first_chainlink_nav.
+
+    The first_chainlink_date itself is NOT included (it comes from the on-chain series).
+    If launch_date >= first_chainlink_date there is no gap → returns [].
+    """
+    t0 = datetime.strptime(launch_date_str,        "%Y-%m-%d").date()
+    t1 = datetime.strptime(first_chainlink_date_str, "%Y-%m-%d").date()
+    if t0 >= t1:
+        return []
+
+    total_days = (t1 - t0).days          # e.g. 217 for EUTBL
+    delta_nav  = first_chainlink_nav - 1.0
+
+    entries = []
+    for i in range(total_days):           # i=0 → launch, i=total_days-1 → day before first on-chain
+        d   = t0 + timedelta(days=i)
+        nav = round(1.0 + delta_nav * i / total_days, 6)
+        entries.append({"date": d.strftime("%Y-%m-%d"), "nav": nav})
+    return entries
 
 
 # ── I/O helpers ────────────────────────────────────────────────────────────────
@@ -143,6 +191,7 @@ def process_feed(rpc, token_id, oracle_addr, currency, phase_id,
     Fetch new rounds since last_aggr_round and merge with existing_series.
     Returns (merged_series, new_last_aggr_round, current_nav_entry | None).
     existing_series: list of {"date": str, "nav": float}
+    Pre-Chainlink gap filling is handled by ensure_launch_prefix() in main().
     """
     print(f"\n[{token_id.upper()} — {currency}]")
 
@@ -209,6 +258,25 @@ def process_feed(rpc, token_id, oracle_addr, currency, phase_id,
     return merged, latest_aggr_id, current_entry
 
 
+def ensure_launch_prefix(token_id, series, launch_date):
+    """
+    If `series` doesn't yet start at `launch_date`, prepend an interpolated
+    prefix from (launch_date, 1.0) → (series[0]['date'], series[0]['nav']).
+    Returns the (possibly extended) series. Idempotent: once the prefix exists
+    it won't be re-added because series[0]['date'] == launch_date.
+    """
+    if not series or not launch_date:
+        return series
+    first_date = series[0]["date"]
+    if first_date <= launch_date:
+        return series          # already starts at / before launch
+    prefix = build_interpolated_prefix(launch_date, first_date, series[0]["nav"])
+    if prefix:
+        print(f"  [{token_id.upper()}] Prepended {len(prefix)} interpolated entries "
+              f"({launch_date} -> {first_date}, pre-Chainlink gap)")
+    return prefix + series
+
+
 # ── Main ───────────────────────────────────────────────────────────────────────
 
 def main():
@@ -235,12 +303,16 @@ def main():
 
     for token_id, (oracle_addr, currency, phase_id) in NAV_FEEDS.items():
         try:
-            last_aggr = state.get(token_id, {}).get("last_aggr_round", 0)
-            series    = existing_history.get(token_id, [])
+            last_aggr   = state.get(token_id, {}).get("last_aggr_round", 0)
+            series      = existing_history.get(token_id, [])
+            launch_date = LAUNCH_DATES.get(token_id)
 
             merged, last_aggr_new, current_entry = process_feed(
-                rpc, token_id, oracle_addr, currency, phase_id, last_aggr, series
+                rpc, token_id, oracle_addr, currency, phase_id, last_aggr, series,
             )
+
+            # Always ensure the series starts from the fund's launch date
+            merged = ensure_launch_prefix(token_id, merged, launch_date)
 
             new_history[token_id] = merged
             new_state[token_id]   = {"last_aggr_round": last_aggr_new}
