@@ -25,10 +25,10 @@ TOKENS = {
     'eutbl':   ('0xa0769f7a8fc65e47de93797b4e21c073c117fc80', 'EUR'),
     'ustbl':   ('0xe4880249745eac5f1ed9d8f7df844792d560e750', 'USD'),
     'uktbl':   ('0x970e2adc2fdf53aea6b5fa73ca6dc30eafedfe3d', 'GBP'),
-    'safo':    ('0x0bb754d8940e283d9ff6855ab5dafbc14165c059', 'USD'),
-    'eursafo': ('0xd879846cbe20751bde8a9342a3cca00a3e56ca47', 'EUR'),
-    'gbpsafo': ('0x2f6c0e5e06b43512706a9cdf66cd21f723fe0ec3', 'GBP'),
-    'chfsafo': ('0xd9aa2300e126869182dfb6ecf54984e4c687f36b', 'CHF'),
+    'safo':    ('0x5677a4dc7484762ffCCEe13cbA20b5c979DeF446', 'USD'),
+    'eursafo': ('0x35DFEC1813C43d82E6B87c682F560bbB8EA0C121', 'EUR'),
+    'gbpsafo': ('0xFE20eBe3881491b2e158b9D10cB95bcFa652262D', 'GBP'),
+    'chfsafo': ('0xEf53E7D17822B641C6481837238A64A688709301', 'CHF'),
 }
 
 
