@@ -1973,7 +1973,19 @@
           <td class="td-ticker col-issuer">${token.fees || '—'}${token.feesExtra ? `<span class="fee-info" data-tip="${token.feesExtra}">i</span>` : ''}</td>
           <td class="td-ticker col-mica">${token.mica || '—'}</td>
           <td class="td-chains col-chains">${chainLogosHtml}</td>
-          <td class="td-ticker col-nav">${(() => { const n = navData[token.id]; return n ? `${n.nav.toFixed(4)}&thinsp;${n.currency}` : '—'; })()}</td>
+          <td class="td-ticker col-nav">${(() => {
+            const n = navData[token.id];
+            if (!n) return '—';
+            const today = new Date().toISOString().slice(0, 10);
+            // native → USD
+            const nativeRate = n.currency === 'USD' ? 1 : (getLastFxRate(n.currency, today) ?? null);
+            const navUSD = nativeRate !== null ? n.nav * nativeRate : null;
+            if (navUSD === null) return `${n.nav.toFixed(4)}&thinsp;${n.currency}`;
+            // USD → displayCurrency
+            const dispRate = displayCurrency === 'USD' ? 1 : (getLastFxRate(displayCurrency, today) ?? null);
+            const navDisp = dispRate !== null ? navUSD / dispRate : navUSD;
+            return `${navDisp.toFixed(4)}&thinsp;${displayCurrency}`;
+          })()}</td>
           <td class="td-holders col-holders" title="* Comptage cross-chaîne dupliqué">${fmtSpaced(token.holders)}<span class="holders-star">*</span></td>
           <td class="td-mcap col-mcap">${fmtKpiMcap(convertMcapToDisplay(token.mcap), mcapSym)}</td>
           <td class="td-change col-1d">${fmtChg(token.chg1d).html}</td>
