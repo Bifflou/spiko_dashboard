@@ -1,0 +1,15 @@
+{
+  "eutbl": {
+    "nav": 1.051364,
+    "currency": "EUR",
+    "updated": "2026-05-10"
+  },
+  "ustbl": {
+    "nav": 1.082666,
+    "currency": "USD",
+    "updated": "2026-05-10"
+  },
+  "uktbl": null,
+  "spkcc": null,
+  "eurspkcc": null
+}
