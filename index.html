@@ -755,7 +755,6 @@
   <!-- ── Token Tracker ── -->
   <div class="tracker-section">
     <div class="tracker-view-header">
-      <p class="section-title">Tokens</p>
       <div class="toggle-wrap">
         <button class="toggle-btn active" id="btn-view-token" onclick="setTrackerView('token')">Par token</button>
         <button class="toggle-btn" id="btn-view-chain" onclick="setTrackerView('chain')">Par blockchain</button>
@@ -812,6 +811,7 @@
             <th class="th-right cchain-mc1d" style="width:64px">1J</th>
             <th class="th-right cchain-mc7d" style="width:64px">7J</th>
             <th class="th-right cchain-mc1m" style="width:64px">1M</th>
+            <th rowspan="2" style="width:40px"></th>
           </tr>
         </thead>
         <tbody id="chain-tbody"></tbody>
@@ -1873,18 +1873,142 @@
       });
     }
 
+    // Colors used for token series inside chain accordion charts
+    const TOKEN_SERIES = {
+      eurcv: { label: 'EURCV', color: '#E2601A' },
+      usdcv: { label: 'USDCV', color: '#2D9CDB' },
+    };
+
+    // Per-chain accordion state
+    const chainState = {};
+    CHAIN_DEFS.forEach(def => {
+      chainState[def.id] = { mcapMode: 'line', holdersMode: 'line', mcapChart: null, holdersChart: null };
+    });
+    let openChain = null;
+
+    function makeChainExpandInner(chainId) {
+      const currency = currentCurrency;
+      return `
+        <div class="expand-chart-card">
+          <div class="card-header">
+            <h2 id="${chainId}-chain-mcap-title">Market Capitalisation (${currency})</h2>
+            <div class="toggle-wrap">
+              <button class="toggle-btn active" id="${chainId}-chain-mcap-btn-line" onclick="setChainView('${chainId}','mcap','line')" title="Courbe">${SVG_LINE}</button>
+              <button class="toggle-btn"        id="${chainId}-chain-mcap-btn-pie"  onclick="setChainView('${chainId}','mcap','pie')"  title="Camembert">${SVG_PIE}</button>
+            </div>
+          </div>
+          <div class="chart-wrap"><canvas id="chart-${chainId}-chain-mcap"></canvas></div>
+        </div>
+        <div class="expand-chart-card">
+          <div class="card-header">
+            <h2>Nombre de Holders</h2>
+            <div class="toggle-wrap">
+              <button class="toggle-btn active" id="${chainId}-chain-holders-btn-line" onclick="setChainView('${chainId}','holders','line')" title="Courbe">${SVG_LINE}</button>
+              <button class="toggle-btn"        id="${chainId}-chain-holders-btn-pie"  onclick="setChainView('${chainId}','holders','pie')"  title="Camembert">${SVG_PIE}</button>
+            </div>
+          </div>
+          <div class="chart-wrap"><canvas id="chart-${chainId}-chain-holders"></canvas></div>
+        </div>`;
+    }
+
+    function rebuildChainChart(chainId, type) {
+      const chainDef = CHAIN_DEFS.find(d => d.id === chainId);
+      if (!chainDef) return;
+      const s = chainState[chainId];
+      const isUSD    = currentCurrency === 'USD';
+      const canvasId = `chart-${chainId}-chain-${type}`;
+      const canvas   = document.getElementById(canvasId);
+      if (!canvas) return;
+      const chains   = chainDef.sgTokens.map(t => ({ ...TOKEN_SERIES[t.tokenId] }));
+
+      if (type === 'mcap') {
+        const fmtVal  = isUSD ? fmtUSD : fmtEUR;
+        const fmtAxis = isUSD ? fmtAxisUSD : fmtAxisEUR;
+        // Normalise each token's mcap series to a common 'val' key
+        const series = chainDef.sgTokens.map(t => {
+          const mcKey = t.tokenId === 'eurcv' ? (isUSD ? 'marketcap' : 'supply') : (isUSD ? 'supply' : 'supply_eur');
+          return (state[t.tokenId].mcapData[t.chainIdx] || []).map(pt => ({ date: pt.date, val: pt[mcKey] || 0 }));
+        });
+        if (s.mcapChart) { s.mcapChart.destroy(); s.mcapChart = null; }
+        canvas.parentElement.innerHTML = `<canvas id="${canvasId}"></canvas>`;
+        if (s.mcapMode === 'line') {
+          s.mcapChart = buildLineChart(canvasId, buildStacked(chains, series, 'val'), fmtVal, fmtAxis, eurusdRates);
+        } else {
+          s.mcapChart = buildPieChart(canvasId, series, chains, 'val', fmtVal);
+        }
+        const titleEl = document.getElementById(`${chainId}-chain-mcap-title`);
+        if (titleEl) titleEl.textContent = `Market Capitalisation (${currentCurrency})`;
+
+      } else {
+        const fmtVal  = v => fmtSpaced(v) + ' holders';
+        const fmtAxis = v => fmtSpaced(v);
+        const series  = chainDef.sgTokens.map(t => state[t.tokenId].holdersData[t.chainIdx] || []);
+        if (s.holdersChart) { s.holdersChart.destroy(); s.holdersChart = null; }
+        canvas.parentElement.innerHTML = `<canvas id="${canvasId}"></canvas>`;
+        if (s.holdersMode === 'line') {
+          s.holdersChart = buildLineChart(canvasId, buildStacked(chains, series, 'holders'), fmtVal, fmtAxis);
+        } else {
+          s.holdersChart = buildPieChart(canvasId, series, chains, 'holders', fmtVal);
+        }
+      }
+    }
+
+    function setChainView(chainId, type, mode) {
+      const s = chainState[chainId];
+      if (!s) return;
+      if (type === 'mcap') s.mcapMode = mode; else s.holdersMode = mode;
+      document.getElementById(`${chainId}-chain-${type}-btn-line`)?.classList.toggle('active', mode === 'line');
+      document.getElementById(`${chainId}-chain-${type}-btn-pie`)?.classList.toggle('active', mode === 'pie');
+      rebuildChainChart(chainId, type);
+    }
+
+    function toggleChainAccordion(chainId) {
+      const wasOpen = openChain === chainId;
+      if (openChain) {
+        document.getElementById(`chain-expand-${openChain}`)?.style.setProperty('max-height', '0');
+        ['mcap', 'holders'].forEach(t => {
+          const k = t + 'Chart';
+          if (chainState[openChain][k]) { chainState[openChain][k].destroy(); chainState[openChain][k] = null; }
+        });
+        document.querySelector(`.chain-row[data-chain="${openChain}"]`)?.classList.remove('is-open');
+        document.querySelector(`.chain-row[data-chain="${openChain}"] .row-arrow`)?.classList.remove('open');
+        openChain = null;
+      }
+      if (!wasOpen) {
+        openChain = chainId;
+        const body = document.getElementById(`chain-expand-${chainId}`);
+        document.querySelector(`.chain-row[data-chain="${chainId}"]`)?.classList.add('is-open');
+        document.querySelector(`.chain-row[data-chain="${chainId}"] .row-arrow`)?.classList.add('open');
+        if (body) {
+          body.style.maxHeight = '900px';
+          setTimeout(() => { rebuildChainChart(chainId, 'mcap'); rebuildChainChart(chainId, 'holders'); }, 50);
+        }
+      }
+    }
+
     function buildChainTable() {
       const tbody = document.getElementById('chain-tbody');
       if (!tbody) return;
       const mcapSym = currentCurrency === 'USD' ? '$' : '€';
       const rows = getChainRows().sort((a, b) => b.mcap - a.mcap);
+      // Destroy any open chain charts before rebuilding DOM
+      if (openChain) {
+        ['mcap', 'holders'].forEach(t => {
+          const k = t + 'Chart';
+          if (chainState[openChain][k]) { chainState[openChain][k].destroy(); chainState[openChain][k] = null; }
+        });
+        openChain = null;
+      }
       tbody.innerHTML = '';
       rows.forEach((chain, idx) => {
+        const isOpen = openChain === chain.id;
         const tokenLogosHtml = chain.sgTokens.map(t =>
           `<img src="${t.logo}" class="chain-logo" title="${t.label}" alt="${t.label}" onerror="this.style.display='none'">`
         ).join('');
+        // ── Main row ──
         const tr = document.createElement('tr');
-        tr.className = 'tracker-row';
+        tr.className = 'tracker-row chain-row' + (isOpen ? ' is-open' : '');
+        tr.dataset.chain = chain.id;
         tr.innerHTML = `
           <td class="td-rank">${idx + 1}</td>
           <td class="td-name">
@@ -1901,8 +2025,26 @@
           <td class="td-change th-right cchain-mc1d">${fmtChg(chain.mcapChg1d).html}</td>
           <td class="td-change th-right cchain-mc7d">${fmtChg(chain.mcapChg7d).html}</td>
           <td class="td-change th-right cchain-mc1m">${fmtChg(chain.mcapChg1m).html}</td>
+          <td class="td-arrow"><span class="row-arrow${isOpen ? ' open' : ''}">›</span></td>
         `;
+        tr.addEventListener('click', () => toggleChainAccordion(chain.id));
         tbody.appendChild(tr);
+        // ── Expand row ──
+        const trExp = document.createElement('tr');
+        trExp.className = 'tracker-expand-row';
+        const td = document.createElement('td');
+        td.colSpan = 13;
+        const expandBody = document.createElement('div');
+        expandBody.className = 'expand-body';
+        expandBody.id = `chain-expand-${chain.id}`;
+        expandBody.style.maxHeight = isOpen ? '900px' : '0';
+        const expandInner = document.createElement('div');
+        expandInner.className = 'expand-inner';
+        expandInner.innerHTML = makeChainExpandInner(chain.id);
+        expandBody.appendChild(expandInner);
+        td.appendChild(expandBody);
+        trExp.appendChild(td);
+        tbody.appendChild(trExp);
       });
     }
 
@@ -2142,6 +2284,7 @@
       isSmoothing = false;
       refreshTrackerValues();                      // update cell values without DOM rebuild
       if (currentTrackerView === 'chain') buildChainTable();
+      if (openChain) rebuildChainChart(openChain, 'mcap');
     }
 
     // ── Init ────────────────────────────────────────────────────────────────────
