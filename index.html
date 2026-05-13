@@ -2123,7 +2123,7 @@
       document.getElementById('btn-chg-pct').classList.toggle('active', mode === 'pct');
       document.getElementById('btn-chg-abs').classList.toggle('active', mode === 'abs');
       refreshTrackerValues();
-      if (currentTrackerView === 'chain') buildChainTable();
+      if (currentTrackerView === 'chain') refreshChainValues();
     }
 
     // ── Tracker view toggle ─────────────────────────────────────────────────────
@@ -2354,6 +2354,27 @@
       }
     }
 
+    // Update chain table cell values without rebuilding the DOM (keeps accordion open)
+    function refreshChainValues() {
+      const rows = getChainRows();
+      const mcapSym = currentCurrency === 'USD' ? '$' : '€';
+      rows.forEach(chain => {
+        const tr = document.querySelector(`.chain-row[data-chain="${chain.id}"]`);
+        if (!tr) return;
+        tr.querySelector('.td-mcap').innerHTML     = fmtKpiMcap(chain.mcap, mcapSym);
+        tr.querySelector('.cchain-h1d').innerHTML  = fmtChg(chain.holdChg1d, chain.holdChg1dAbs, 'holders').html;
+        tr.querySelector('.cchain-h7d').innerHTML  = fmtChg(chain.holdChg7d, chain.holdChg7dAbs, 'holders').html;
+        tr.querySelector('.cchain-h1m').innerHTML  = fmtChg(chain.holdChg1m, chain.holdChg1mAbs, 'holders').html;
+        tr.querySelector('.cchain-mc1d').innerHTML = fmtChg(chain.mcapChg1d, chain.mcapChg1dAbs, 'mcap').html;
+        tr.querySelector('.cchain-mc7d').innerHTML = fmtChg(chain.mcapChg7d, chain.mcapChg7dAbs, 'mcap').html;
+        tr.querySelector('.cchain-mc1m').innerHTML = fmtChg(chain.mcapChg1m, chain.mcapChg1mAbs, 'mcap').html;
+      });
+      if (openChain) {
+        const titleEl = document.getElementById(`${openChain}-chain-mcap-title`);
+        if (titleEl) titleEl.textContent = `Market Capitalisation (${currentCurrency})`;
+      }
+    }
+
     function setCurrency(currency) {
       if (currency === currentCurrency) return;
       currentCurrency = currency;
@@ -2361,12 +2382,12 @@
       document.getElementById('btn-eur').classList.toggle('active', currency === 'EUR');
       buildKpiCards();
       isSmoothing = true;
-      buildGlobalCharts();                         // global line charts: smooth in-place
-      if (openToken) rebuildChart(openToken, 'mcap'); // accordion mcap chart: smooth in-place
+      buildGlobalCharts();                              // global line charts: smooth in-place
+      if (openToken) rebuildChart(openToken, 'mcap');   // token accordion mcap: smooth in-place
+      if (openChain) rebuildChainChart(openChain, 'mcap'); // chain accordion mcap: smooth in-place
       isSmoothing = false;
-      refreshTrackerValues();                      // update cell values without DOM rebuild
-      if (currentTrackerView === 'chain') buildChainTable();
-      if (openChain) rebuildChainChart(openChain, 'mcap');
+      refreshTrackerValues();                           // token table: cell update, no DOM rebuild
+      if (currentTrackerView === 'chain') refreshChainValues(); // chain table: idem
     }
 
     // ── Init ────────────────────────────────────────────────────────────────────
