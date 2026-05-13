@@ -1997,6 +1997,23 @@
           const mcKey = t.tokenId === 'eurcv' ? (isUSD ? 'marketcap' : 'supply') : (isUSD ? 'supply' : 'supply_eur');
           return (state[t.tokenId].mcapData[t.chainIdx] || []).map(pt => ({ date: pt.date, val: pt[mcKey] || 0 }));
         });
+
+        // Smooth in-place update when switching currency on an existing line chart
+        if (isSmoothing && s.mcapChart && s.mcapMode === 'line') {
+          const stacked = buildStacked(chains, series, 'val');
+          stacked.filled.forEach((fillData, pi) => {
+            const di = stacked.paired.length - 1 - pi;
+            if (s.mcapChart.data.datasets[di]) s.mcapChart.data.datasets[di].data = fillData;
+          });
+          s.mcapChart.data.labels = stacked.labels;
+          s.mcapChart.options.scales.y.ticks.callback = fmtAxis;
+          s.mcapChart.options.plugins.tooltip.external = makeTooltipHandler(fmtVal, stacked.paired, eurusdRates, stacked.rawDates);
+          s.mcapChart.update();
+          const titleEl = document.getElementById(`${chainId}-chain-mcap-title`);
+          if (titleEl) titleEl.textContent = `Market Capitalisation (${currentCurrency})`;
+          return;
+        }
+
         if (s.mcapChart) { s.mcapChart.destroy(); s.mcapChart = null; }
         canvas.parentElement.innerHTML = `<canvas id="${canvasId}"></canvas>`;
         if (s.mcapMode === 'line') {
