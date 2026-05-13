@@ -453,7 +453,7 @@
 
     /* ── Tablette paysage (≤ 1199px) ────────────────────────────────────── */
     @media (max-width: 1199px) {
-      .col-ticker, .col-peg, .col-mica, .col-integration { display: none; }
+      .col-ticker, .col-peg, .col-mica { display: none; }
       .cchain-h7d, .cchain-h1m, .cchain-mc7d, .cchain-mc1m { display: none; }
     }
 
@@ -462,7 +462,7 @@
       .main-content   { padding: 1.5rem 1.75rem; }
       .kpi-grid       { grid-template-columns: repeat(2, 1fr); }
       .expand-inner   { grid-template-columns: 1fr; }
-      .col-1m, .col-7d, .col-type, .col-issuer { display: none; }
+      .col-1m, .col-7d, .col-type, .col-h7d, .col-h1m { display: none; }
       .cchain-h1d, .cchain-mc1d, .cchain-native { display: none; }
     }
 
@@ -474,7 +474,7 @@
       .global-grid    { grid-template-columns: 1fr; }
       .kpi-grid       { gap: 0.9rem; margin-bottom: 1.5rem; }
       .chart-wrap     { height: 260px; }
-      .col-ticker, .col-peg, .col-issuer, .col-type, .col-mica, .col-integration, .col-chains, .col-7d { display: none; }
+      .col-ticker, .col-peg, .col-type, .col-mica, .col-chains, .col-7d, .col-h1d { display: none; }
       .tracker-row td { padding: 0.85rem 0.75rem; }
       .token-logo     { width: 30px; height: 30px; }
       .chain-logo     { width: 22px; height: 22px; }
@@ -772,11 +772,12 @@
             <th class="col-ticker" style="width:72px">Ticker</th>
             <th class="col-peg" style="width:60px">Peg</th>
             <th class="col-type" style="width:96px">Type</th>
-            <th class="col-issuer" style="width:88px">Émetteur</th>
             <th class="col-mica" style="width:80px">MiCA</th>
             <th class="col-chains" style="width:130px">Chaînes</th>
-            <th class="col-integration" style="width:80px">Intégration</th>
             <th class="th-sortable th-right col-holders" data-sort="holders" style="width:100px">Holders <span class="sort-icon" id="si-holders">↕</span></th>
+            <th class="th-right col-h1d" style="width:64px">1J</th>
+            <th class="th-right col-h7d" style="width:64px">7J</th>
+            <th class="th-right col-h1m" style="width:64px">1M</th>
             <th class="th-sortable th-right col-mcap" data-sort="mcap" style="width:120px">Market Cap <span class="sort-icon" id="si-mcap">↓</span></th>
             <th class="th-right col-1d" style="width:64px">1J</th>
             <th class="th-right col-7d" style="width:64px">7J</th>
@@ -1815,20 +1816,30 @@
         const mcap    = state[def.id].mcapData.reduce((s, series) => s + getLatestValue(series, mcKey), 0);
         const holders = state[def.id].holdersData.reduce((s, series) => s + getLatestValue(series, 'holders'), 0);
 
-        // Build merged total-mcap series for this token (forward-filled daily)
+        // Merged market cap series
         const merged = totalMcapSeries(def.id, mcKey);
-        if (!merged.length) return { ...def, mcap, holders, chg1d: null, chg7d: null, chg1m: null };
+        let chg1d = null, chg7d = null, chg1m = null;
+        if (merged.length) {
+          const ld = merged[merged.length - 1].date;
+          chg1d = pctChange(mcap, valueAtDate(merged, isoSubDays(ld, 1)));
+          chg7d = pctChange(mcap, valueAtDate(merged, isoSubDays(ld, 7)));
+          chg1m = pctChange(mcap, valueAtDate(merged, isoSubDays(ld, 30)));
+        }
 
-        const latestDate = merged[merged.length - 1].date;
-        const v1d  = valueAtDate(merged, isoSubDays(latestDate, 1));
-        const v7d  = valueAtDate(merged, isoSubDays(latestDate, 7));
-        const v1m  = valueAtDate(merged, isoSubDays(latestDate, 30));
+        // Merged holders series
+        const mergedH = mergeSeries(state[def.id].holdersData.map(s => ({ series: s, key: 'holders' })));
+        let holdChg1d = null, holdChg7d = null, holdChg1m = null;
+        if (mergedH.length) {
+          const ld = mergedH[mergedH.length - 1].date;
+          holdChg1d = pctChange(holders, valueAtDate(mergedH, isoSubDays(ld, 1)));
+          holdChg7d = pctChange(holders, valueAtDate(mergedH, isoSubDays(ld, 7)));
+          holdChg1m = pctChange(holders, valueAtDate(mergedH, isoSubDays(ld, 30)));
+        }
 
         return {
           ...def, mcap, holders,
-          chg1d: pctChange(mcap, v1d),
-          chg7d: pctChange(mcap, v7d),
-          chg1m: pctChange(mcap, v1m),
+          chg1d, chg7d, chg1m,
+          holdChg1d, holdChg7d, holdChg1m,
         };
       });
     }
@@ -2146,11 +2157,12 @@
           <td class="td-ticker col-ticker">${token.ticker}</td>
           <td class="td-ticker col-peg">${token.peg ? token.peg.code : '—'}</td>
           <td class="td-ticker col-type">${token.type || '—'}</td>
-          <td class="td-ticker col-issuer">${token.issuer || '—'}</td>
           <td class="td-ticker col-mica">${token.mica || '—'}</td>
           <td class="td-chains col-chains">${chainLogosHtml}</td>
-          <td class="td-ticker col-integration">${token.integration || '—'}</td>
           <td class="td-holders col-holders" title="* Comptage non dédupliqué cross-chaîne">${fmtSpaced(token.holders)}<span class="holders-star">*</span></td>
+          <td class="td-change col-h1d">${fmtChg(token.holdChg1d).html}</td>
+          <td class="td-change col-h7d">${fmtChg(token.holdChg7d).html}</td>
+          <td class="td-change col-h1m">${fmtChg(token.holdChg1m).html}</td>
           <td class="td-mcap col-mcap">${fmtKpiMcap(token.mcap, mcapSym)}</td>
           <td class="td-change col-1d">${fmtChg(token.chg1d).html}</td>
           <td class="td-change col-7d">${fmtChg(token.chg7d).html}</td>
@@ -2165,7 +2177,7 @@
         trExp.className = 'tracker-expand-row';
         trExp.dataset.token = token.id;
         const td = document.createElement('td');
-        td.colSpan = 15;
+        td.colSpan = 16;
         const expandBody = document.createElement('div');
         expandBody.className = 'expand-body';
         expandBody.id = 'expand-' + token.id;
@@ -2258,6 +2270,9 @@
         const tr = document.querySelector(`.tracker-row[data-token="${token.id}"]`);
         if (!tr) return;
         tr.querySelector('.td-mcap').innerHTML    = fmtKpiMcap(token.mcap, mcapSym);
+        tr.querySelector('.col-h1d').innerHTML    = fmtChg(token.holdChg1d).html;
+        tr.querySelector('.col-h7d').innerHTML    = fmtChg(token.holdChg7d).html;
+        tr.querySelector('.col-h1m').innerHTML    = fmtChg(token.holdChg1m).html;
         tr.querySelector('.col-1d').innerHTML     = fmtChg(token.chg1d).html;
         tr.querySelector('.col-7d').innerHTML     = fmtChg(token.chg7d).html;
         tr.querySelector('.col-1m').innerHTML     = fmtChg(token.chg1m).html;
