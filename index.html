@@ -976,16 +976,21 @@
 
         const date = items[0].label;
         const isoDate = rawDates ? rawDates[items[0].dataIndex] : null;
-        const activeItems = items.filter(i => (i.raw || 0) > 0);
+        // Include series that have started (even if value = 0); exclude only pre-start padding
+        const activeItems = items.filter(item => {
+          const p = paired.find(p => p.chain.label === item.dataset.label);
+          if (!p || !isoDate) return (item.raw ?? 0) > 0;
+          return isoDate >= p.startDate;
+        });
         if (!activeItems.length) return;
-        const total = activeItems.reduce((s, i) => s + i.raw, 0);
+        const total = activeItems.reduce((s, i) => s + (i.raw ?? 0), 0);
 
-        const rows = [...activeItems].sort((a, b) => (b.raw || 0) - (a.raw || 0)).map(item => {
+        const rows = [...activeItems].sort((a, b) => (b.raw ?? 0) - (a.raw ?? 0)).map(item => {
           const chain = paired.find(p => p.chain.label === item.dataset.label)?.chain || {};
           return `<div class="tt-row">
             <div class="tt-dot" style="background:${chain.color || '#888'}"></div>
             <span class="tt-label">${item.dataset.label}</span>
-            <span class="tt-value">${fmtVal(item.raw || 0)}</span>
+            <span class="tt-value">${fmtVal(item.raw ?? 0)}</span>
           </div>`;
         }).join('');
 
