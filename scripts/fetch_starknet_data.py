@@ -55,6 +55,26 @@ def save_json(path, data):
     with open(path, 'w') as f:
         json.dump(data, f)
 
+def fill_daily_gaps(series, value_key):
+    """Forward-fill missing dates so there are no gaps in daily series."""
+    if not series:
+        return series
+    from datetime import timedelta
+    result = []
+    by_date = {pt['date']: pt for pt in series}
+    d = datetime.strptime(series[0]['date'], '%Y-%m-%d').date()
+    end = datetime.strptime(series[-1]['date'], '%Y-%m-%d').date()
+    last_val = None
+    while d <= end:
+        ds = d.strftime('%Y-%m-%d')
+        if ds in by_date:
+            result.append(by_date[ds])
+            last_val = by_date[ds][value_key]
+        elif last_val is not None:
+            result.append({'date': ds, value_key: last_val})
+        d += timedelta(days=1)
+    return result
+
 
 # ── Starknet JSON-RPC helpers ──────────────────────────────────────────────────
 
@@ -242,31 +262,31 @@ def build_daily_snapshots(events, balances, decimals, block_ts_cache):
 
 # ── FX rates & marketcap ───────────────────────────────────────────────────────
 
-def compute_marketcap(supply_history, currency, fx_rates):
-    if currency == 'USD':
-        return [
-            {'date': item['date'], 'marketcap': round(item['supply'], 2), 'supply': round(item['supply'], 2)}
-            for item in supply_history
-        ]
+def compute_marketcap(supply_history, currency, fx_rates, nav_lookup=None):
     result    = []
     last_rate = None
+    last_nav  = None
     for item in supply_history:
-        date = item['date']
-        if date in fx_rates:
-            last_rate = fx_rates[date]
-        if last_rate is None:
-            continue
-        result.append({
-            'date':      date,
-            'marketcap': round(item['supply'] * last_rate, 2),
-            'supply':    round(item['supply'], 2),
-        })
+        date   = item['date']
+        supply = item['supply']
+        if nav_lookup and date in nav_lookup:
+            last_nav = nav_lookup[date]
+        nav = last_nav if last_nav is not None else 1.0
+
+        if currency == 'USD':
+            result.append({'date': date, 'marketcap': round(supply * nav, 2), 'supply': round(supply, 2)})
+        else:
+            if date in fx_rates:
+                last_rate = fx_rates[date]
+            if last_rate is None:
+                continue
+            result.append({'date': date, 'marketcap': round(supply * nav * last_rate, 2), 'supply': round(supply, 2)})
     return result
 
 
 # ── Per-token processing ───────────────────────────────────────────────────────
 
-def process_token(token_id, contract_address, currency, fx_rates_all, block_ts_cache):
+def process_token(token_id, contract_address, currency, fx_rates_all, block_ts_cache, nav_lookup=None):
     print(f'\n[{token_id.upper()} on STARKNET — {contract_address[:14]}…]')
 
     state_file   = f'data/{token_id}_{CHAIN_NAME}_state.json'
@@ -298,22 +318,24 @@ def process_token(token_id, contract_address, currency, fx_rates_all, block_ts_c
         print(f'  {len(new_events)} new events')
 
         if not new_events:
-            print('  No new events — skipping.')
-            return
+            print('  No new events — carrying forward today.')
+            merged_raw  = [{'date': pt['date'], 'supply': pt['supply']} for pt in existing_mcap]
+            merged_hold = list(existing_holders)
+            last_block  = from_block
+        else:
+            # Determine cut date for merging
+            first_new_bn   = new_events[0]['block_number']
+            if first_new_bn not in block_ts_cache:
+                block_ts_cache[first_new_bn] = get_block_timestamp(first_new_bn)
+            first_new_date = datetime.fromtimestamp(block_ts_cache[first_new_bn], tz=timezone.utc).strftime('%Y-%m-%d')
 
-        # Determine cut date for merging
-        first_new_bn   = new_events[0]['block_number']
-        if first_new_bn not in block_ts_cache:
-            block_ts_cache[first_new_bn] = get_block_timestamp(first_new_bn)
-        first_new_date = datetime.fromtimestamp(block_ts_cache[first_new_bn], tz=timezone.utc).strftime('%Y-%m-%d')
+            new_supply, new_holders = build_daily_snapshots(new_events, balances, decimals, block_ts_cache)
 
-        new_supply, new_holders = build_daily_snapshots(new_events, balances, decimals, block_ts_cache)
-
-        kept_mcap    = [pt for pt in existing_mcap    if pt['date'] < first_new_date]
-        kept_holders = [pt for pt in existing_holders if pt['date'] < first_new_date]
-        merged_raw   = [{'date': pt['date'], 'supply': pt['supply']} for pt in kept_mcap] + new_supply
-        merged_hold  = kept_holders + new_holders
-        last_block   = new_events[-1]['block_number']
+            kept_mcap    = [pt for pt in existing_mcap    if pt['date'] < first_new_date]
+            kept_holders = [pt for pt in existing_holders if pt['date'] < first_new_date]
+            merged_raw   = [{'date': pt['date'], 'supply': pt['supply']} for pt in kept_mcap] + new_supply
+            merged_hold  = kept_holders + new_holders
+            last_block   = new_events[-1]['block_number']
 
     else:
         print('  Full fetch from genesis…')
@@ -332,8 +354,18 @@ def process_token(token_id, contract_address, currency, fx_rates_all, block_ts_c
         print('  No supply data.')
         return
 
+    today = datetime.now(timezone.utc).strftime('%Y-%m-%d')
+    if merged_raw[-1]['date'] < today:
+        current_supply  = sum(v for v in balances.values() if v > 0) / (10 ** decimals)
+        current_holders = sum(1 for v in balances.values() if v > 0)
+        merged_raw.append({'date': today, 'supply': round(current_supply, 7)})
+        merged_hold.append({'date': today, 'holders': current_holders})
+
+    merged_raw  = fill_daily_gaps(merged_raw,  'supply')
+    merged_hold = fill_daily_gaps(merged_hold, 'holders')
+
     fx_rates = fx_rates_all.get(currency, {}) if currency != 'USD' else {}
-    mcap_history = compute_marketcap(merged_raw, currency, fx_rates)
+    mcap_history = compute_marketcap(merged_raw, currency, fx_rates, nav_lookup=nav_lookup)
 
     save_json(state_file, {
         'last_block':          last_block,
@@ -351,12 +383,18 @@ def main():
     os.makedirs('data', exist_ok=True)
     print(f'=== Fetching Spiko Starknet data ===')
 
-    fx_rates_all   = load_json('data/fx_rates.json', default={})
-    block_ts_cache = {}  # shared across tokens to avoid redundant RPC calls
+    fx_rates_all    = load_json('data/fx_rates.json',    default={})
+    nav_history_all = load_json('data/nav_history.json', default={})
+    block_ts_cache  = {}  # shared across tokens to avoid redundant RPC calls
+
+    def build_nav_lookup(tid):
+        s = nav_history_all.get(tid)
+        return {e['date']: e['nav'] for e in s} if s else None
 
     for token_id, (contract_address, currency) in TOKENS.items():
         try:
-            process_token(token_id, contract_address, currency, fx_rates_all, block_ts_cache)
+            process_token(token_id, contract_address, currency, fx_rates_all, block_ts_cache,
+                          nav_lookup=build_nav_lookup(token_id))
         except Exception as e:
             print(f'  ERROR for {token_id}: {e}')
         time.sleep(0.5)

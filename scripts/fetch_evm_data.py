@@ -101,6 +101,26 @@ def save_json(path, data):
     with open(path, 'w') as f:
         json.dump(data, f)
 
+def fill_daily_gaps(series, value_key):
+    """Forward-fill missing dates so there are no gaps in daily series."""
+    if not series:
+        return series
+    from datetime import date as date_type, timedelta
+    result = []
+    by_date = {pt['date']: pt for pt in series}
+    d = datetime.strptime(series[0]['date'], '%Y-%m-%d').date()
+    end = datetime.strptime(series[-1]['date'], '%Y-%m-%d').date()
+    last_val = None
+    while d <= end:
+        ds = d.strftime('%Y-%m-%d')
+        if ds in by_date:
+            result.append(by_date[ds])
+            last_val = by_date[ds][value_key]
+        elif last_val is not None:
+            result.append({'date': ds, value_key: last_val})
+        d += timedelta(days=1)
+    return result
+
 
 # ── Explorer API helpers ───────────────────────────────────────────────────────
 
@@ -213,32 +233,44 @@ def build_daily_snapshots(logs, balances, decimals):
 
 # ── FX rates & marketcap ───────────────────────────────────────────────────────
 
-def compute_marketcap(supply_history, currency, fx_rates_for_currency):
-    if currency == 'USD':
-        return [
-            {'date': item['date'], 'marketcap': round(item['supply'], 2), 'supply': round(item['supply'], 2)}
-            for item in supply_history
-        ]
-
+def compute_marketcap(supply_history, currency, fx_rates_for_currency, nav_lookup=None):
+    """
+    nav_lookup: optional {date: nav_float} for tokens with a Chainlink NAV feed.
+    With nav_lookup → marketcap = supply × NAV × fx_rate  (accurate accumulating-token calc)
+    Without         → marketcap = supply × fx_rate        (1 token = 1 currency unit)
+    """
     result    = []
     last_rate = None
+    last_nav  = None
     for item in supply_history:
-        date = item['date']
-        if date in fx_rates_for_currency:
-            last_rate = fx_rates_for_currency[date]
-        if last_rate is None:
-            continue
-        result.append({
-            'date':      date,
-            'marketcap': round(item['supply'] * last_rate, 2),
-            'supply':    round(item['supply'], 2),
-        })
+        date   = item['date']
+        supply = item['supply']
+        if nav_lookup and date in nav_lookup:
+            last_nav = nav_lookup[date]
+        nav = last_nav if last_nav is not None else 1.0
+
+        if currency == 'USD':
+            result.append({
+                'date':      date,
+                'marketcap': round(supply * nav, 2),
+                'supply':    round(supply, 2),
+            })
+        else:
+            if date in fx_rates_for_currency:
+                last_rate = fx_rates_for_currency[date]
+            if last_rate is None:
+                continue
+            result.append({
+                'date':      date,
+                'marketcap': round(supply * nav * last_rate, 2),
+                'supply':    round(supply, 2),
+            })
     return result
 
 
 # ── Per-token processing ───────────────────────────────────────────────────────
 
-def process_token(cfg, chain_name, token_id, token_address, currency, fx_rates_all):
+def process_token(cfg, chain_name, token_id, token_address, currency, fx_rates_all, nav_lookup=None):
     state_file   = f'data/{token_id}_{chain_name}_state.json'
     mcap_file    = f'data/{token_id}_{chain_name}_marketcap.json'
     holders_file = f'data/{token_id}_{chain_name}_holders.json'
@@ -262,19 +294,21 @@ def process_token(cfg, chain_name, token_id, token_address, currency, fx_rates_a
         print(f'    {len(overlap_logs)} overlap, {len(truly_new_logs)} truly new')
 
         if not truly_new_logs:
-            print(f'    No new logs — skipping.')
-            return
+            print(f'    No new logs — carrying forward today.')
+            merged_raw  = [{'date': pt['date'], 'supply': pt['supply']} for pt in existing_mcap]
+            merged_hold = list(existing_holders)
+            new_last_block = last_block
+        else:
+            first_new_ts   = int(truly_new_logs[0]['timeStamp'], 16)
+            first_new_date = datetime.fromtimestamp(first_new_ts, tz=timezone.utc).strftime('%Y-%m-%d')
+            new_supply, new_holders = build_daily_snapshots(truly_new_logs, balances, decimals)
 
-        first_new_ts   = int(truly_new_logs[0]['timeStamp'], 16)
-        first_new_date = datetime.fromtimestamp(first_new_ts, tz=timezone.utc).strftime('%Y-%m-%d')
-        new_supply, new_holders = build_daily_snapshots(truly_new_logs, balances, decimals)
+            kept_mcap    = [pt for pt in existing_mcap    if pt['date'] < first_new_date]
+            kept_holders = [pt for pt in existing_holders if pt['date'] < first_new_date]
+            merged_raw   = [{'date': pt['date'], 'supply': pt['supply']} for pt in kept_mcap] + new_supply
+            merged_hold  = kept_holders + new_holders
 
-        kept_mcap    = [pt for pt in existing_mcap    if pt['date'] < first_new_date]
-        kept_holders = [pt for pt in existing_holders if pt['date'] < first_new_date]
-        merged_raw   = [{'date': pt['date'], 'supply': pt['supply']} for pt in kept_mcap] + new_supply
-        merged_hold  = kept_holders + new_holders
-
-        new_last_block = max(int(l['blockNumber'], 16) for l in fetched_logs)
+            new_last_block = max(int(l['blockNumber'], 16) for l in fetched_logs)
 
     else:
         print(f'    Full fetch from genesis...')
@@ -294,8 +328,18 @@ def process_token(cfg, chain_name, token_id, token_address, currency, fx_rates_a
         print(f'    No supply data.')
         return
 
+    today = datetime.now(timezone.utc).strftime('%Y-%m-%d')
+    if merged_raw[-1]['date'] < today:
+        current_supply  = sum(v for v in balances.values() if v > 0) / (10 ** decimals)
+        current_holders = sum(1 for v in balances.values() if v > 0)
+        merged_raw.append({'date': today, 'supply': round(current_supply, 7)})
+        merged_hold.append({'date': today, 'holders': current_holders})
+
+    merged_raw  = fill_daily_gaps(merged_raw,  'supply')
+    merged_hold = fill_daily_gaps(merged_hold, 'holders')
+
     fx_rates = fx_rates_all.get(currency, {}) if currency != 'USD' else {}
-    mcap_history = compute_marketcap(merged_raw, currency, fx_rates)
+    mcap_history = compute_marketcap(merged_raw, currency, fx_rates, nav_lookup=nav_lookup)
 
     save_json(state_file, {
         'last_block': new_last_block,
@@ -321,12 +365,20 @@ def main():
     print(f'=== Fetching Spiko data — {chain_name.upper()} (chain_id={cfg["chain_id"]}) ===')
     os.makedirs('data', exist_ok=True)
 
-    fx_rates_all = load_json('data/fx_rates.json', default={})
+    fx_rates_all     = load_json('data/fx_rates.json',     default={})
+    nav_history_all  = load_json('data/nav_history.json',  default={})
+
+    def build_nav_lookup(token_id):
+        series = nav_history_all.get(token_id)
+        if not series:
+            return None
+        return {item['date']: item['nav'] for item in series}
 
     for token_id, (token_address, currency) in tokens.items():
         print(f'\n[{token_id.upper()} on {chain_name.upper()}]')
         try:
-            process_token(cfg, chain_name, token_id, token_address, currency, fx_rates_all)
+            process_token(cfg, chain_name, token_id, token_address, currency,
+                          fx_rates_all, nav_lookup=build_nav_lookup(token_id))
         except Exception as e:
             print(f'  ERROR processing {token_id}: {e}')
         time.sleep(0.5)
