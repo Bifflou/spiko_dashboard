@@ -85,47 +85,47 @@ def get_token_decimals(token_address):
 # ── Log fetching ───────────────────────────────────────────────────────────────
 
 def fetch_transfer_logs(token_address, from_block):
+    """Paginate via fromBlock: Etherlink Blockscout caps at 100 results and
+    ignores the page parameter, so we advance fromBlock after each full batch."""
     all_logs = []
-    seen     = set()
+    seen         = set()
     current_from = from_block
+    PAGE_CAP     = 100   # actual hard limit returned by Etherlink Blockscout
 
     while True:
-        page = 1
-        last_block_in_batch = None
+        data = blockscout_get({
+            'module': 'logs', 'action': 'getLogs',
+            'address': token_address, 'topic0': TRANSFER_TOPIC,
+            'fromBlock': current_from, 'toBlock': 'latest',
+            'page': 1, 'offset': 1000,
+        })
+        if data['status'] != '1' or not data['result']:
+            return all_logs
 
-        while True:
-            data = blockscout_get({
-                'module': 'logs', 'action': 'getLogs',
-                'address': token_address, 'topic0': TRANSFER_TOPIC,
-                'fromBlock': current_from, 'toBlock': 'latest',
-                'page': page, 'offset': 1000,
-            })
-            if data['status'] != '1' or not data['result']:
-                return all_logs
+        logs = data['result']
+        new  = 0
+        for log in logs:
+            key = (log['transactionHash'], log['logIndex'])
+            if key not in seen:
+                seen.add(key)
+                all_logs.append(log)
+                new += 1
 
-            logs = data['result']
-            new  = 0
-            for log in logs:
-                key = (log['transactionHash'], log['logIndex'])
-                if key not in seen:
-                    seen.add(key)
-                    all_logs.append(log)
-                    new += 1
+        last_block = int(logs[-1]['blockNumber'], 16)
+        print(f"    from_block {current_from}: {new} new events (total: {len(all_logs)}, last_block: {last_block})")
 
-            last_block_in_batch = int(logs[-1]['blockNumber'], 16)
-            print(f"    Page {page} (from {current_from}): {new} new events (total: {len(all_logs)})")
+        if len(logs) < PAGE_CAP:
+            # Partial page → we've reached the end
+            return all_logs
 
-            if len(logs) < 1000:
-                return all_logs
+        if last_block <= current_from:
+            # No progress (all events in same block) — avoid infinite loop
+            print(f"    WARNING: stuck at block {current_from}, stopping.")
+            return all_logs
 
-            page += 1
-            time.sleep(0.25)
-
-            if page > 10:
-                current_from = last_block_in_batch
-                break
-
-    return all_logs
+        # Full page → advance fromBlock to continue
+        current_from = last_block
+        time.sleep(0.25)
 
 
 # ── Supply & holders reconstruction ───────────────────────────────────────────
