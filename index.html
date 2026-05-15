@@ -2110,7 +2110,7 @@
       tbody.innerHTML = '';
 
       rows.forEach((chain, idx) => {
-        const tokenLogosHtml = `<div class="chain-logos" style="justify-content:flex-start;">${
+        const tokenLogosHtml = `<div class="chain-logos">${
           chain.tokenLogos.map(t => `<img src="${t.src}" class="chain-logo" title="${t.ticker}" alt="${t.ticker}" onerror="this.style.display='none'">`).join('')
         }</div>`;
 
