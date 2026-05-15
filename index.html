@@ -1622,30 +1622,103 @@
       rebuildGlobalChart(id);
     }
 
+    // Met à jour les cellules monétaires du tableau sans reconstruire le DOM
+    function updateTableCurrency() {
+      const mcapSym = displayCurrency === 'EUR' ? '€' : displayCurrency === 'GBP' ? '£' : displayCurrency === 'CHF' ? '₣' : '$';
+      const today   = new Date().toISOString().slice(0, 10);
+
+      if (tableView === 'tokens') {
+        getTokenRows().forEach(token => {
+          const tr = document.querySelector(`.tracker-row[data-token="${token.id}"]`);
+          if (!tr) return;
+          // Market cap
+          const mcapCell = tr.querySelector('.td-mcap');
+          if (mcapCell) mcapCell.innerHTML = fmtKpiMcap(convertMcapToDisplay(token.mcap), mcapSym);
+          // Variations absolues mcap (mode Nb uniquement)
+          if (tableValMode === 'abs') {
+            const c1d = tr.querySelector('.col-1d');
+            const c7d = tr.querySelector('.col-7d');
+            const c1m = tr.querySelector('.col-1m');
+            if (c1d) c1d.innerHTML = fmtAbsMcap(token.d1d !== null ? convertMcapToDisplay(token.d1d) : null, mcapSym);
+            if (c7d) c7d.innerHTML = fmtAbsMcap(token.d7d !== null ? convertMcapToDisplay(token.d7d) : null, mcapSym);
+            if (c1m) c1m.innerHTML = fmtAbsMcap(token.d1m !== null ? convertMcapToDisplay(token.d1m) : null, mcapSym);
+          }
+          // NAV
+          const navCell = tr.querySelector('.col-nav');
+          if (navCell) {
+            const n = navData[token.id];
+            if (n) {
+              const nativeRate = n.currency === 'USD' ? 1 : (getLastFxRate(n.currency, today) ?? null);
+              const navUSD     = nativeRate !== null ? n.nav * nativeRate : null;
+              if (navUSD !== null) {
+                const dispRate = displayCurrency === 'USD' ? 1 : (getLastFxRate(displayCurrency, today) ?? null);
+                const navDisp  = dispRate !== null ? navUSD / dispRate : navUSD;
+                navCell.innerHTML = `${navDisp.toFixed(4)}&thinsp;${displayCurrency}`;
+              }
+            }
+          }
+        });
+        // Titre accordéon token ouvert
+        if (openToken) {
+          const titleEl = document.getElementById(`${openToken}-mcap-title`);
+          if (titleEl) titleEl.textContent = `Market Capitalisation (${displayCurrency})`;
+        }
+      } else {
+        // Vue Chaînes
+        getChainRows().forEach(chain => {
+          const tr = document.querySelector(`.tracker-row[data-chain="${chain.label}"]`);
+          if (!tr) return;
+          const mcapCell = tr.querySelector('.td-mcap');
+          if (mcapCell) mcapCell.innerHTML = chain.mcap > 0 ? fmtKpiMcap(convertMcapToDisplay(chain.mcap), mcapSym) : '—';
+          if (tableValMode === 'abs') {
+            // colonnes 9,10,11 = variations mcap 1J/7J/1M dans la vue chaînes
+            if (tr.cells[9])  tr.cells[9].innerHTML  = fmtAbsMcap(chain.d1d !== null ? convertMcapToDisplay(chain.d1d) : null, mcapSym);
+            if (tr.cells[10]) tr.cells[10].innerHTML = fmtAbsMcap(chain.d7d !== null ? convertMcapToDisplay(chain.d7d) : null, mcapSym);
+            if (tr.cells[11]) tr.cells[11].innerHTML = fmtAbsMcap(chain.d1m !== null ? convertMcapToDisplay(chain.d1m) : null, mcapSym);
+          }
+        });
+        // Titre accordéon chaîne ouvert
+        if (openChain) {
+          const expandDiv = document.getElementById('expand-chain-' + openChain.toLowerCase());
+          if (expandDiv) {
+            const h2 = expandDiv.querySelector('h2');
+            if (h2) h2.textContent = `Market Capitalisation (${displayCurrency}) — ${openChain}`;
+          }
+        }
+      }
+    }
+
     function setCurrency(c) {
       displayCurrency = c;
       document.getElementById('currency-select').value = c;
 
-      // Rebuild global mcap charts (titles update inside rebuildGlobalChart via fmtVal)
+      // Smooth in-place update pour les charts globaux mcap
+      isSmoothing = true;
       rebuildGlobalChart('mcap-token');
       rebuildGlobalChart('mcap-chain');
+      isSmoothing = false;
 
-      // Update global chart titles
+      // Titres des charts globaux
       const titleToken = document.getElementById('global-mcap-token-title');
       const titleChain = document.getElementById('global-mcap-chain-title');
       if (titleToken) titleToken.textContent = `Total Market Cap par Token (${c})`;
       if (titleChain) titleChain.textContent = `Total Market Cap par Chaîne (${c})`;
 
-      // Rebuild KPI cards and tracker table
+      // KPI cards
       buildKpiCards();
-      buildTrackerTable();
 
-      // Rebuild per-token mcap chart if accordion is open
-      if (openToken) {
+      // Mise à jour des cellules du tableau sans reconstruire le DOM
+      updateTableCurrency();
+
+      // Smooth in-place update pour le chart d'accordéon ouvert
+      isSmoothing = true;
+      if (openToken && state[openToken]?.mcapChart) {
         rebuildChart(openToken, 'mcap');
-        const titleEl = document.getElementById(`${openToken}-mcap-title`);
-        if (titleEl) titleEl.textContent = `Market Capitalisation (${c})`;
       }
+      if (openChain && chainChartState[openChain]?.mcapChart) {
+        rebuildChainChart(openChain, 'mcap', _chainRowsCache[openChain]);
+      }
+      isSmoothing = false;
     }
 
     function buildGlobalCharts() {
@@ -1706,6 +1779,19 @@
       if (!canvas) return;
 
       if (type === 'mcap') {
+        // Smooth in-place update (currency switch only)
+        if (isSmoothing && s.mcapChart && s.mcapMode === 'line') {
+          const stacked = buildStacked(chains, s.mcapData, 'marketcap', getMcapTransformFn(), minDate);
+          stacked.filled.forEach((fillData, pi) => {
+            const di = stacked.paired.length - 1 - pi;
+            if (s.mcapChart.data.datasets[di]) s.mcapChart.data.datasets[di].data = fillData;
+          });
+          s.mcapChart.data.labels = stacked.labels;
+          s.mcapChart.options.scales.y.ticks.callback = fmtAxisMcap;
+          s.mcapChart.options.plugins.tooltip.external = makeTooltipHandler(fmtMcapVal, stacked.paired, fxRatesData['EUR'], stacked.rawDates);
+          s.mcapChart.update();
+          return;
+        }
         if (s.mcapChart) { s.mcapChart.destroy(); s.mcapChart = null; }
         const wrap = canvas.parentElement;
         wrap.innerHTML = `<canvas id="${canvasId}"></canvas>`;
@@ -2059,6 +2145,19 @@
       const holdersData = entries.map(e => e.holdersSeries || []);
 
       if (type === 'mcap') {
+        // Smooth in-place update (currency switch only)
+        if (isSmoothing && s.mcapChart && s.mcapMode === 'line') {
+          const stacked = buildStacked(pseudoChains, mcapData, 'marketcap', getMcapTransformFn());
+          stacked.filled.forEach((fillData, pi) => {
+            const di = stacked.paired.length - 1 - pi;
+            if (s.mcapChart.data.datasets[di]) s.mcapChart.data.datasets[di].data = fillData;
+          });
+          s.mcapChart.data.labels = stacked.labels;
+          s.mcapChart.options.scales.y.ticks.callback = fmtAxisMcap;
+          s.mcapChart.options.plugins.tooltip.external = makeTooltipHandler(fmtMcapVal, stacked.paired, fxRatesData['EUR'], stacked.rawDates);
+          s.mcapChart.update();
+          return;
+        }
         if (s.mcapChart) { s.mcapChart.destroy(); s.mcapChart = null; }
         const canvasId = `chart-chain-${cid}-mcap`;
         const wrap = document.getElementById(canvasId)?.parentElement;
