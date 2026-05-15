@@ -804,7 +804,13 @@
 
   <!-- ── Token Tracker ── -->
   <div class="tracker-section">
-    <p class="section-title">Tokens</p>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem;">
+      <p class="section-title" style="margin-bottom:0">Tokens</p>
+      <div class="toggle-wrap">
+        <button class="toggle-btn active" id="tbl-mode-pct" onclick="setTableValMode('pct')" title="Afficher les variations en %">%</button>
+        <button class="toggle-btn" id="tbl-mode-abs" onclick="setTableValMode('abs')" title="Afficher les variations en valeur absolue">Nb</button>
+      </div>
+    </div>
     <div class="card" style="padding:0; overflow-x:auto;">
       <table class="tracker-table">
         <thead>
@@ -817,9 +823,9 @@
             <th class="col-chains" style="width:160px">Chaînes</th>
             <th class="col-nav" style="width:108px">NAV / token</th>
             <th class="th-sortable th-right col-holders" data-sort="holders" style="width:100px">Holders <span class="sort-icon" id="si-holders">↕</span></th>
-            <th class="th-sortable th-right col-h1d" data-sort="hchg1d" style="width:60px">H 1J <span class="sort-icon" id="si-h1d">↕</span></th>
-            <th class="th-sortable th-right col-h7d" data-sort="hchg7d" style="width:60px">H 7J <span class="sort-icon" id="si-h7d">↕</span></th>
-            <th class="th-sortable th-right col-h1m" data-sort="hchg1m" style="width:60px">H 1M <span class="sort-icon" id="si-h1m">↕</span></th>
+            <th class="th-sortable th-right col-h1d" data-sort="hchg1d" style="width:60px">1J <span class="sort-icon" id="si-h1d">↕</span></th>
+            <th class="th-sortable th-right col-h7d" data-sort="hchg7d" style="width:60px">7J <span class="sort-icon" id="si-h7d">↕</span></th>
+            <th class="th-sortable th-right col-h1m" data-sort="hchg1m" style="width:60px">1M <span class="sort-icon" id="si-h1m">↕</span></th>
             <th class="th-sortable th-right col-mcap" data-sort="mcap" style="width:120px">Market Cap <span class="sort-icon" id="si-mcap">↓</span></th>
             <th class="th-sortable th-right col-1d" data-sort="chg1d" style="width:60px">1J <span class="sort-icon" id="si-1d">↕</span></th>
             <th class="th-sortable th-right col-7d" data-sort="chg7d" style="width:60px">7J <span class="sort-icon" id="si-7d">↕</span></th>
@@ -1752,8 +1758,9 @@
     }
 
     // ── Tracker table ───────────────────────────────────────────────────────────
-    let trackerSort = { key: 'mcap', dir: 'desc' };
-    let openToken   = null;
+    let trackerSort  = { key: 'mcap', dir: 'desc' };
+    let openToken    = null;
+    let tableValMode = 'pct'; // 'pct' | 'abs'
 
     const CHAIN_LOGOS = {
       'Ethereum':  './img/ethereum.png',
@@ -1883,6 +1890,33 @@
       return { html: `<span class="${cls}">${sign}${pct.toFixed(2)}%</span>` };
     }
 
+    function fmtAbsHolders(delta) {
+      if (delta === null) return '<span class="chg-zero">—</span>';
+      const cls  = delta > 0 ? 'chg-pos' : delta < 0 ? 'chg-neg' : 'chg-zero';
+      const sign = delta > 0 ? '+' : '';
+      return `<span class="${cls}">${sign}${Math.round(delta)}</span>`;
+    }
+
+    function fmtAbsMcap(delta, sym) {
+      if (delta === null) return '<span class="chg-zero">—</span>';
+      const cls  = delta > 0 ? 'chg-pos' : delta < 0 ? 'chg-neg' : 'chg-zero';
+      const sign = delta > 0 ? '+' : '';
+      const abs  = Math.abs(delta);
+      let val;
+      if (abs >= 1e9)       val = (delta / 1e9).toFixed(2) + 'B';
+      else if (abs >= 1e6)  val = (delta / 1e6).toFixed(2) + 'M';
+      else if (abs >= 1e3)  val = (delta / 1e3).toFixed(1) + 'K';
+      else                  val = Math.round(delta).toString();
+      return `<span class="${cls}">${sign}${sym}${val}</span>`;
+    }
+
+    function setTableValMode(mode) {
+      tableValMode = mode;
+      document.getElementById('tbl-mode-pct').classList.toggle('active', mode === 'pct');
+      document.getElementById('tbl-mode-abs').classList.toggle('active', mode === 'abs');
+      buildTrackerTable();
+    }
+
     function getTokenRows() {
       return TOKEN_DEFS.map(def => {
         const mcap    = state[def.id].mcapData.reduce((s, series) => s + getLatestValue(series, 'marketcap'), 0);
@@ -1891,26 +1925,48 @@
         const merged  = totalMcapSeries(def.id, 'marketcap');
         const mergedH = totalHoldersSeries(def.id);
 
-        const nullRow = { ...def, mcap, holders, chg1d: null, chg7d: null, chg1m: null, hchg1d: null, hchg7d: null, hchg1m: null };
+        const nullRow = { ...def, mcap, holders,
+          chg1d: null, chg7d: null, chg1m: null,
+          hchg1d: null, hchg7d: null, hchg1m: null,
+          d1d: null, d7d: null, d1m: null,
+          hd1d: null, hd7d: null, hd1m: null };
         if (!merged.length && !mergedH.length) return nullRow;
 
         let chg1d = null, chg7d = null, chg1m = null;
+        let d1d = null, d7d = null, d1m = null;
         if (merged.length) {
           const latestDate = merged[merged.length - 1].date;
-          chg1d = pctChange(mcap, valueAtDate(merged, isoSubDays(latestDate, 1)));
-          chg7d = pctChange(mcap, valueAtDate(merged, isoSubDays(latestDate, 7)));
-          chg1m = pctChange(mcap, valueAtDate(merged, isoSubDays(latestDate, 30)));
+          const v1d = valueAtDate(merged, isoSubDays(latestDate, 1));
+          const v7d = valueAtDate(merged, isoSubDays(latestDate, 7));
+          const v1m = valueAtDate(merged, isoSubDays(latestDate, 30));
+          chg1d = pctChange(mcap, v1d);
+          chg7d = pctChange(mcap, v7d);
+          chg1m = pctChange(mcap, v1m);
+          if (v1d != null) d1d = mcap - v1d;
+          if (v7d != null) d7d = mcap - v7d;
+          if (v1m != null) d1m = mcap - v1m;
         }
 
         let hchg1d = null, hchg7d = null, hchg1m = null;
+        let hd1d = null, hd7d = null, hd1m = null;
         if (mergedH.length) {
           const latestHDate = mergedH[mergedH.length - 1].date;
-          hchg1d = pctChange(holders, valueAtDate(mergedH, isoSubDays(latestHDate, 1)));
-          hchg7d = pctChange(holders, valueAtDate(mergedH, isoSubDays(latestHDate, 7)));
-          hchg1m = pctChange(holders, valueAtDate(mergedH, isoSubDays(latestHDate, 30)));
+          const vh1d = valueAtDate(mergedH, isoSubDays(latestHDate, 1));
+          const vh7d = valueAtDate(mergedH, isoSubDays(latestHDate, 7));
+          const vh1m = valueAtDate(mergedH, isoSubDays(latestHDate, 30));
+          hchg1d = pctChange(holders, vh1d);
+          hchg7d = pctChange(holders, vh7d);
+          hchg1m = pctChange(holders, vh1m);
+          if (vh1d != null) hd1d = holders - vh1d;
+          if (vh7d != null) hd7d = holders - vh7d;
+          if (vh1m != null) hd1m = holders - vh1m;
         }
 
-        return { ...def, mcap, holders, chg1d, chg7d, chg1m, hchg1d, hchg7d, hchg1m };
+        return { ...def, mcap, holders,
+          chg1d, chg7d, chg1m,
+          hchg1d, hchg7d, hchg1m,
+          d1d, d7d, d1m,
+          hd1d, hd7d, hd1m };
       });
     }
 
@@ -2017,13 +2073,13 @@
             return `${navDisp.toFixed(4)}&thinsp;${displayCurrency}`;
           })()}</td>
           <td class="td-holders col-holders" title="* Comptage cross-chaîne dupliqué">${fmtSpaced(token.holders)}<span class="holders-star">*</span></td>
-          <td class="td-change col-h1d">${fmtChg(token.hchg1d).html}</td>
-          <td class="td-change col-h7d">${fmtChg(token.hchg7d).html}</td>
-          <td class="td-change col-h1m">${fmtChg(token.hchg1m).html}</td>
+          <td class="td-change col-h1d">${tableValMode === 'pct' ? fmtChg(token.hchg1d).html : fmtAbsHolders(token.hd1d)}</td>
+          <td class="td-change col-h7d">${tableValMode === 'pct' ? fmtChg(token.hchg7d).html : fmtAbsHolders(token.hd7d)}</td>
+          <td class="td-change col-h1m">${tableValMode === 'pct' ? fmtChg(token.hchg1m).html : fmtAbsHolders(token.hd1m)}</td>
           <td class="td-mcap col-mcap">${fmtKpiMcap(convertMcapToDisplay(token.mcap), mcapSym)}</td>
-          <td class="td-change col-1d">${fmtChg(token.chg1d).html}</td>
-          <td class="td-change col-7d">${fmtChg(token.chg7d).html}</td>
-          <td class="td-change col-1m">${fmtChg(token.chg1m).html}</td>
+          <td class="td-change col-1d">${tableValMode === 'pct' ? fmtChg(token.chg1d).html : fmtAbsMcap(token.d1d !== null ? convertMcapToDisplay(token.d1d) : null, mcapSym)}</td>
+          <td class="td-change col-7d">${tableValMode === 'pct' ? fmtChg(token.chg7d).html : fmtAbsMcap(token.d7d !== null ? convertMcapToDisplay(token.d7d) : null, mcapSym)}</td>
+          <td class="td-change col-1m">${tableValMode === 'pct' ? fmtChg(token.chg1m).html : fmtAbsMcap(token.d1m !== null ? convertMcapToDisplay(token.d1m) : null, mcapSym)}</td>
           <td class="td-arrow"><span class="row-arrow${isOpen ? ' open' : ''}">›</span></td>
         `;
         tr.addEventListener('click', () => toggleAccordion(token.id));
