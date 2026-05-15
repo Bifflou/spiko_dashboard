@@ -66,12 +66,16 @@ def fill_daily_gaps(series, value_key):
 
 # ── Blockscout v2 helpers ──────────────────────────────────────────────────────
 
-def get_token_decimals(token_address):
+def get_token_info(token_address):
+    """Return (decimals, holders_count, total_supply_raw) from Blockscout v2."""
     resp = requests.get(f"{BLOCKSCOUT_V2}/tokens/{token_address}", timeout=30)
     if resp.ok:
-        dec = resp.json().get('decimals')
-        return int(dec) if dec is not None else 18
-    return 18
+        d = resp.json()
+        dec     = int(d.get('decimals') or 18)
+        holders = int(d.get('holders_count') or 0)
+        supply  = int(d.get('total_supply')  or 0)
+        return dec, holders, supply
+    return 18, None, None
 
 
 # ── Transfer fetching (v2 cursor pagination) ───────────────────────────────────
@@ -211,8 +215,8 @@ def process_token(token_id, token_address, currency, fx_rates_all, nav_lookup=No
     existing_mcap    = load_json(mcap_file,    default=[])
     existing_holders = load_json(holders_file, default=[])
 
-    decimals = get_token_decimals(token_address)
-    print(f'  Decimals: {decimals}')
+    decimals, api_holders_now, api_supply_now = get_token_info(token_address)
+    print(f'  Decimals: {decimals}  |  API holders: {api_holders_now}  |  API supply raw: {api_supply_now}')
 
     if state.get('last_block') and existing_mcap:
         last_block = int(state['last_block'])
@@ -263,6 +267,20 @@ def process_token(token_id, token_address, currency, fx_rates_all, nav_lookup=No
         current_holders = sum(1 for v in balances.values() if v > 0)
         merged_raw.append({'date': today, 'supply': round(current_supply, 7)})
         merged_hold.append({'date': today, 'holders': current_holders})
+
+    # ── Override today's snapshot with live API data ───────────────────────────
+    # The Spiko EUTBL token (and potentially others) uses non-standard Transfer
+    # semantics: transfers to the redemption address emit an event but do NOT
+    # change balanceOf. Event-based reconstruction therefore undercounts holders
+    # and supply. We override the current-day entry with the values read directly
+    # from the contract via the Blockscout API (holders_count, total_supply).
+    if api_holders_now is not None and api_supply_now is not None:
+        api_supply = round(api_supply_now / (10 ** decimals), 7)
+        if merged_raw  and merged_raw[-1]['date']  == today:
+            merged_raw[-1]['supply']    = api_supply
+        if merged_hold and merged_hold[-1]['date'] == today:
+            merged_hold[-1]['holders']  = api_holders_now
+        print(f'  API override today: {api_holders_now} holders, supply {api_supply}')
 
     merged_raw  = fill_daily_gaps(merged_raw,  'supply')
     merged_hold = fill_daily_gaps(merged_hold, 'holders')
