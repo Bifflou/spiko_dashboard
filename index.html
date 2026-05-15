@@ -2036,9 +2036,8 @@
         const mcap    = mcapSeries.length    ? (mcapSeries[mcapSeries.length - 1].value || 0)       : 0;
         const holders = holdersSeries.length ? (holdersSeries[holdersSeries.length - 1].value || 0) : 0;
 
-        // Logos des tokens actifs sur cette chaîne
+        // Logos des tokens déployés sur cette chaîne (contrat existant, traction ou non)
         const tokenLogos = tokenEntries
-          .filter(e => e.mcapSeries && getLatestValue(e.mcapSeries, 'marketcap') > 0)
           .map(e => ({ src: e.def.logo, ticker: e.def.ticker }));
 
         // Variations mcap
