@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Spiko Dashboard</title>
+  <title>CoinVertible Dashboard — SG Forge</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -22,43 +22,40 @@
 
     :root {
       /* ── Layout ── */
-      --bg:        #04081A;
-      --bg-card:   #080F28;
-      --bg-deep:   #050A1C;
-      --border:    #141E40;
-      --border-hi: #1E2E58;
-      /* ── Brand (Spiko blue) ── */
-      --brand:      #1A6FFF;
-      --brand-dim:  rgba(26,111,255,0.13);
-      --brand-dim2: rgba(26,111,255,0.24);
+      --bg:        #05091A;
+      --bg-card:   #09112B;
+      --bg-deep:   #060C20;
+      --border:    #182044;
+      --border-hi: #243060;
+      /* ── Brand ── */
+      --red:       #E2001A;
+      --red-dim:   rgba(226,0,26,0.12);
+      --red-dim2:  rgba(226,0,26,0.22);
       /* ── Text ── */
-      --text:      #EDF0FF;
-      --text-sec:  #96AACC;
-      --text-mute: #637096;
+      --text:      #EEF0FF;
+      --text-sec:  #A8B8D8;
+      --text-mute: #7888B0;
       /* ── Status ── */
-      --green:     #22C07A;
-      --red-neg:   #EF3340;
-      --red:       #EF3340;
-      --red-dim:   rgba(239,51,64,0.12);
-      --red-dim2:  rgba(239,51,64,0.22);
+      --green:     #2EA87A;
+      --red-neg:   #E2001A;
       /* ── Chart-specific ── */
-      --chart-bg:   #080F28;
-      --pie-border: #0E1530;
-      --row-hover:  rgba(26,111,255,0.04);
+      --chart-bg:    #0C1330;
+      --pie-border:  #161b22;
+      --row-hover:   rgba(255,255,255,0.03);
     }
 
     [data-theme="light"] {
-      --bg:        #F5F8FF;
+      --bg:        #EFF2FA;
       --bg-card:   #FFFFFF;
-      --bg-deep:   #EBF0FF;
-      --border:    #D6DEF5;
-      --border-hi: #B0BEDD;
-      --text:      #09101F;
-      --text-sec:  #2C3D6E;
-      --text-mute: #5B6E9A;
+      --bg-deep:   #E4E9F6;
+      --border:    #CDD5EC;
+      --border-hi: #A8BAD8;
+      --text:      #080C22;
+      --text-sec:  #344070;
+      --text-mute: #6878A8;
       --chart-bg:    #FFFFFF;
-      --pie-border:  #F5F8FF;
-      --row-hover:   rgba(26,111,255,0.04);
+      --pie-border:  #EFF2FA;
+      --row-hover:   rgba(0,0,0,0.04);
     }
 
     body {
@@ -86,7 +83,7 @@
     .header-accent {
       width: 3px;
       height: 26px;
-      background: var(--brand);
+      background: var(--red);
       border-radius: 2px;
       flex-shrink: 0;
     }
@@ -101,9 +98,9 @@
     .header-badge {
       font-size: 0.65rem;
       font-weight: 700;
-      color: var(--brand);
-      background: var(--brand-dim);
-      border: 1px solid var(--brand-dim2);
+      color: var(--red);
+      background: var(--red-dim);
+      border: 1px solid var(--red-dim2);
       border-radius: 4px;
       padding: 2px 8px;
       letter-spacing: 0.1em;
@@ -124,11 +121,32 @@
     .section-title {
       font-size: 0.65rem;
       font-weight: 700;
-      color: var(--brand);
+      color: var(--red);
       text-transform: uppercase;
       letter-spacing: 0.18em;
       margin-bottom: 1rem;
     }
+
+    /* ── Tracker view header (title + toggle) ────────────────────────────── */
+    .tracker-view-header {
+      display: flex;
+      align-items: center;
+      gap: 1.25rem;
+      margin-bottom: 1rem;
+    }
+    .tracker-view-header .section-title { margin-bottom: 0; }
+    .toggle-chg-mode { margin-left: auto; }
+
+    /* ── Chain table grouped header ──────────────────────────────────────── */
+    .th-group {
+      text-align: center !important;
+      border-left: 1px solid var(--border);
+      letter-spacing: 0.08em;
+    }
+    .th-group-child {
+      border-left: 1px solid var(--border);
+    }
+    .th-group-child:first-of-type { border-left: none; }
 
     /* ── Global overview ─────────────────────────────────────────────────── */
     .global-overview { margin-bottom: 2.5rem; }
@@ -159,13 +177,13 @@
     .kpi-card {
       background: var(--bg-card);
       border: 1px solid var(--border);
-      border-top: 2px solid var(--brand);
+      border-top: 2px solid var(--red);
       border-radius: 10px;
       padding: 1.25rem 1.5rem;
       transition: border-color 0.2s;
     }
 
-    .kpi-card:hover { border-color: var(--border-hi); border-top-color: var(--brand); }
+    .kpi-card:hover { border-color: var(--border-hi); border-top-color: var(--red); }
 
     .kpi-label {
       font-size: 0.65rem;
@@ -263,7 +281,7 @@
       transition: background 0.15s;
     }
     .tracker-row:hover { background: var(--row-hover); }
-    .tracker-row.is-open { background: rgba(37,99,235,0.04); }
+    .tracker-row.is-open { background: rgba(226,0,26,0.04); }
 
     .tracker-row td {
       padding: 1rem 1.1rem;
@@ -314,12 +332,12 @@
     }
 
     .chain-logo {
-      width: 28px; height: 28px;
+      width: 38px; height: 38px;
       border-radius: 50%;
       border: 2px solid var(--bg-card);
       background: var(--bg-deep);
     }
-    .chain-logo + .chain-logo { margin-left: -8px; }
+    .chain-logo + .chain-logo { margin-left: -10px; }
 
     .td-mcap {
       width: 130px;
@@ -354,7 +372,7 @@
       transition: transform 0.25s ease;
       line-height: 1;
     }
-    .row-arrow.open { transform: rotate(90deg); color: var(--brand); }
+    .row-arrow.open { transform: rotate(90deg); color: var(--red); }
 
     /* ── Accordion expand row ─────────────────────────────────────────────── */
     .tracker-expand-row td { padding: 0; border: none; }
@@ -425,8 +443,8 @@
       .tracker-table thead th { padding: 0.8rem 1.5rem; font-size: 0.72rem; }
       .tracker-row td { padding: 1.25rem 1.5rem; font-size: 1rem; }
       .token-logo     { width: 48px; height: 48px; }
-      .chain-logo     { width: 36px; height: 36px; }
-      .chain-logo + .chain-logo { margin-left: -10px; }
+      .chain-logo     { width: 48px; height: 48px; }
+      .chain-logo + .chain-logo { margin-left: -12px; }
     }
 
     /* ── Tablette paysage / petit laptop (≤ 1399px) ─────────────────────── */
@@ -436,7 +454,8 @@
 
     /* ── Tablette paysage (≤ 1199px) ────────────────────────────────────── */
     @media (max-width: 1199px) {
-      .col-ticker, .col-peg, .col-mica, .col-integration { display: none; }
+      .col-ticker, .col-peg, .col-mica { display: none; }
+      .cchain-h7d, .cchain-h1m, .cchain-mc7d, .cchain-mc1m { display: none; }
     }
 
     /* ── Tablette portrait (≤ 1023px) ───────────────────────────────────── */
@@ -444,7 +463,8 @@
       .main-content   { padding: 1.5rem 1.75rem; }
       .kpi-grid       { grid-template-columns: repeat(2, 1fr); }
       .expand-inner   { grid-template-columns: 1fr; }
-      .col-1m, .col-7d, .col-type, .col-issuer { display: none; }
+      .col-1m, .col-7d, .col-type, .col-h7d, .col-h1m { display: none; }
+      .cchain-h1d, .cchain-mc1d, .cchain-native { display: none; }
     }
 
     /* ── Téléphone paysage / petite tablette (≤ 767px) ─────────────────── */
@@ -455,10 +475,11 @@
       .global-grid    { grid-template-columns: 1fr; }
       .kpi-grid       { gap: 0.9rem; margin-bottom: 1.5rem; }
       .chart-wrap     { height: 260px; }
-      .col-ticker, .col-peg, .col-issuer, .col-type, .col-mica, .col-integration, .col-chains, .col-7d { display: none; }
+      .col-ticker, .col-peg, .col-type, .col-mica, .col-chains, .col-7d, .col-h1d { display: none; }
       .tracker-row td { padding: 0.85rem 0.75rem; }
       .token-logo     { width: 30px; height: 30px; }
-      .chain-logo     { width: 22px; height: 22px; }
+      .chain-logo     { width: 30px; height: 30px; }
+      .cchain-tokens  { display: none; }
     }
 
     /* ── Téléphone portrait (≤ 479px) ───────────────────────────────────── */
@@ -476,6 +497,7 @@
       .tracker-table thead th { padding: 0.55rem 0.65rem; font-size: 0.6rem; }
       .tracker-row td { padding: 0.75rem 0.65rem; font-size: 0.82rem; }
       .token-logo     { width: 26px; height: 26px; }
+      .chain-logo     { width: 26px; height: 26px; }
       .td-name        { gap: 0.5rem; }
       .expand-inner   { padding: 1rem 0.75rem; gap: 0.9rem; }
     }
@@ -587,33 +609,11 @@
     }
 
     .toggle-btn.active {
-      background: var(--brand);
+      background: var(--red);
       color: #FFFFFF;
     }
 
     .toggle-btn svg { display: block; }
-
-    .currency-select {
-      background: var(--bg-deep);
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      color: var(--text);
-      font-size: 0.75rem;
-      font-weight: 600;
-      padding: 4px 26px 4px 10px;
-      cursor: pointer;
-      font-family: inherit;
-      letter-spacing: 0.04em;
-      appearance: none;
-      -webkit-appearance: none;
-      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23888' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
-      background-repeat: no-repeat;
-      background-position: right 8px center;
-      outline: none;
-      transition: border-color 0.15s;
-    }
-    .currency-select:hover { border-color: var(--border-hi); }
-    .currency-select option { background: var(--bg-card); color: var(--text); }
 
 
     /* ── External tooltip ────────────────────────────────────────────────── */
@@ -661,18 +661,16 @@
 <body>
   <header>
     <div class="header-accent"></div>
-    <h1>Spiko Dashboard</h1>
-    <span class="header-badge">Spiko</span>
+    <h1>CoinVertible Dashboard</h1>
+    <span class="header-badge">SG Forge</span>
     <div style="display:flex; align-items:center; gap:8px; margin-left:auto; flex-shrink:0;">
-      <select id="currency-select" class="currency-select" onchange="setCurrency(this.value)">
-        <option value="USD">$ USD</option>
-        <option value="EUR">€ EUR</option>
-        <option value="GBP">£ GBP</option>
-        <option value="CHF">₣ CHF</option>
-      </select>
       <div class="toggle-wrap">
         <button class="toggle-btn" id="btn-light" onclick="setTheme('light')">☀ Jour</button>
         <button class="toggle-btn" id="btn-dark"  onclick="setTheme('dark')">🌙 Nuit</button>
+      </div>
+      <div class="toggle-wrap">
+        <button class="toggle-btn active" id="btn-usd" onclick="setCurrency('USD')">USD</button>
+        <button class="toggle-btn"        id="btn-eur" onclick="setCurrency('EUR')">EUR</button>
       </div>
     </div>
   </header>
@@ -758,7 +756,19 @@
 
   <!-- ── Token Tracker ── -->
   <div class="tracker-section">
-    <p class="section-title">Tokens</p>
+    <div class="tracker-view-header">
+      <div class="toggle-wrap">
+        <button class="toggle-btn active" id="btn-view-token" onclick="setTrackerView('token')">Par token</button>
+        <button class="toggle-btn" id="btn-view-chain" onclick="setTrackerView('chain')">Par blockchain</button>
+      </div>
+      <div class="toggle-wrap toggle-chg-mode">
+        <button class="toggle-btn active" id="btn-chg-pct" onclick="setChangeMode('pct')">%</button>
+        <button class="toggle-btn" id="btn-chg-abs" onclick="setChangeMode('abs')">Nb</button>
+      </div>
+    </div>
+
+    <!-- ── Vue par token ── -->
+    <div id="tracker-token-view">
     <div class="card" style="padding:0; overflow-x:auto;">
       <table class="tracker-table">
         <thead>
@@ -768,11 +778,12 @@
             <th class="col-ticker" style="width:72px">Ticker</th>
             <th class="col-peg" style="width:60px">Peg</th>
             <th class="col-type" style="width:96px">Type</th>
-            <th class="col-issuer" style="width:88px">Émetteur</th>
             <th class="col-mica" style="width:80px">MiCA</th>
             <th class="col-chains" style="width:130px">Chaînes</th>
-            <th class="col-integration" style="width:80px">Intégration</th>
             <th class="th-sortable th-right col-holders" data-sort="holders" style="width:100px">Holders <span class="sort-icon" id="si-holders">↕</span></th>
+            <th class="th-right col-h1d" style="width:64px">1J</th>
+            <th class="th-right col-h7d" style="width:64px">7J</th>
+            <th class="th-right col-h1m" style="width:64px">1M</th>
             <th class="th-sortable th-right col-mcap" data-sort="mcap" style="width:120px">Market Cap <span class="sort-icon" id="si-mcap">↓</span></th>
             <th class="th-right col-1d" style="width:64px">1J</th>
             <th class="th-right col-7d" style="width:64px">7J</th>
@@ -783,49 +794,84 @@
         <tbody id="tracker-tbody"></tbody>
       </table>
     </div>
+    </div><!-- end tracker-token-view -->
+
+    <!-- ── Vue par blockchain ── -->
+    <div id="tracker-chain-view" style="display:none">
+    <div class="card" style="padding:0; overflow-x:auto;">
+      <table class="tracker-table" style="table-layout:fixed">
+        <thead>
+          <tr>
+            <th style="width:36px">#</th>
+            <th class="th-name" style="width:190px;text-align:left">Blockchain</th>
+            <th class="cchain-native" style="width:72px">Natif</th>
+            <th class="cchain-tokens" style="width:120px">Tokens</th>
+            <th class="th-right" style="width:100px">Holders</th>
+            <th class="th-right cchain-h1d" style="width:64px">1J</th>
+            <th class="th-right cchain-h7d" style="width:64px">7J</th>
+            <th class="th-right cchain-h1m" style="width:64px">1M</th>
+            <th class="th-right" style="width:120px">Market Cap</th>
+            <th class="th-right cchain-mc1d" style="width:64px">1J</th>
+            <th class="th-right cchain-mc7d" style="width:64px">7J</th>
+            <th class="th-right cchain-mc1m" style="width:64px">1M</th>
+            <th style="width:40px"></th>
+          </tr>
+        </thead>
+        <tbody id="chain-tbody"></tbody>
+      </table>
+    </div>
+    </div><!-- end tracker-chain-view -->
+
   </div>
 
   <p id="last-updated"></p>
+  <p id="rate-warning" style="display:none; margin-top:0.4rem; font-size:0.75rem; color:#E2601A;">
+    &#9888; Taux EUR/USD approximatif (service indisponible, fallback 1.08)
+  </p>
 
   <script>
-    // ── Chain color palette ─────────────────────────────────────────────────────
-    const CHAIN_COLORS = {
-      'Ethereum':    '#627EEA',
-      'Polygon':     '#8247E5',
-      'Base':        '#0052FF',
-      'Arbitrum':    '#28A0F0',
-      'Etherlink':   '#22C55E',
-      'Stellar':     '#EAB308',
-      'Starknet':    '#EC796B',
-    };
+    // ── Chain definitions ───────────────────────────────────────────────────────
+    // ── Blockchain view definitions ─────────────────────────────────────────────
+    const CHAIN_DEFS = [
+      {
+        id: 'ethereum', name: 'Ethereum', logo: './img/ethereum.png', nativeToken: 'ETH',
+        sgTokens: [
+          { logo: './img/eurcv.png', label: 'EURCV', tokenId: 'eurcv', chainIdx: 0 },
+          { logo: './img/usdcv.png', label: 'USDCV', tokenId: 'usdcv', chainIdx: 0 },
+        ],
+      },
+      {
+        id: 'solana', name: 'Solana', logo: './img/solana.png', nativeToken: 'SOL',
+        sgTokens: [
+          { logo: './img/eurcv.png', label: 'EURCV', tokenId: 'eurcv', chainIdx: 1 },
+          { logo: './img/usdcv.png', label: 'USDCV', tokenId: 'usdcv', chainIdx: 1 },
+        ],
+      },
+      {
+        id: 'xrpl', name: 'XRP Ledger', logo: './img/xrp.png', nativeToken: 'XRP',
+        sgTokens: [
+          { logo: './img/eurcv.png', label: 'EURCV', tokenId: 'eurcv', chainIdx: 2 },
+        ],
+      },
+      {
+        id: 'stellar', name: 'Stellar', logo: './img/stellar.png', nativeToken: 'XLM',
+        sgTokens: [
+          { logo: './img/eurcv.png', label: 'EURCV', tokenId: 'eurcv', chainIdx: 3 },
+        ],
+      },
+    ];
 
-    function chainDefs(tokenId, hasEtherlink = true) {
-      const chains = [
-        { label: 'Ethereum',  mcapFile: `data/${tokenId}_eth_marketcap.json`,      holdersFile: `data/${tokenId}_eth_holders.json`      },
-        { label: 'Polygon',   mcapFile: `data/${tokenId}_polygon_marketcap.json`,  holdersFile: `data/${tokenId}_polygon_holders.json`  },
-        { label: 'Base',      mcapFile: `data/${tokenId}_base_marketcap.json`,     holdersFile: `data/${tokenId}_base_holders.json`     },
-        { label: 'Arbitrum',  mcapFile: `data/${tokenId}_arb_marketcap.json`,      holdersFile: `data/${tokenId}_arb_holders.json`      },
-      ];
-      if (hasEtherlink) {
-        chains.push({ label: 'Etherlink', mcapFile: `data/${tokenId}_etherlink_marketcap.json`, holdersFile: `data/${tokenId}_etherlink_holders.json` });
-      }
-      chains.push(
-        { label: 'Stellar',  mcapFile: `data/${tokenId}_stellar_marketcap.json`,  holdersFile: `data/${tokenId}_stellar_holders.json`  },
-        { label: 'Starknet', mcapFile: `data/${tokenId}_starknet_marketcap.json`, holdersFile: `data/${tokenId}_starknet_holders.json` },
-      );
-      return chains.map(c => ({ ...c, color: CHAIN_COLORS[c.label] }));
-    }
+    const EURCV_CHAINS = [
+      { label: 'Ethereum',   color: '#627EEA', mcapFile: 'data/marketcap.json',         holdersFile: 'data/holders.json' },
+      { label: 'Solana',     color: '#9945FF', mcapFile: 'data/sol_marketcap.json',      holdersFile: 'data/sol_holders.json' },
+      { label: 'XRP Ledger', color: '#00B4A0', mcapFile: 'data/xrpl_marketcap.json',    holdersFile: 'data/xrpl_holders.json' },
+      { label: 'Stellar',    color: '#2D9CDB', mcapFile: 'data/stellar_marketcap.json', holdersFile: 'data/stellar_holders.json' },
+    ];
 
-    // Per-token chain definitions (SPKCC and eurSPKCC have no Etherlink)
-    const EUTBL_CHAINS    = chainDefs('eutbl');
-    const USTBL_CHAINS    = chainDefs('ustbl');
-    const UKTBL_CHAINS    = chainDefs('uktbl');
-    const SPKCC_CHAINS    = chainDefs('spkcc',    false);
-    const EURSPKCC_CHAINS = chainDefs('eurspkcc', false);
-    const SAFO_CHAINS     = chainDefs('safo');
-    const EURSAFO_CHAINS  = chainDefs('eursafo');
-    const GBPSAFO_CHAINS  = chainDefs('gbpsafo');
-    const CHFSAFO_CHAINS  = chainDefs('chfsafo');
+    const USDCV_CHAINS = [
+      { label: 'Ethereum', color: '#627EEA', mcapFile: 'data/usdcv_eth_marketcap.json', holdersFile: 'data/usdcv_eth_holders.json' },
+      { label: 'Solana',   color: '#9945FF', mcapFile: 'data/usdcv_sol_marketcap.json', holdersFile: 'data/usdcv_sol_holders.json' },
+    ];
 
     // ── Formatters ──────────────────────────────────────────────────────────────
     function fmtSpaced(v) {
@@ -845,60 +891,6 @@
       if (v >= 1e3) return '€' + (v / 1e3).toFixed(0) + 'K';
       return '€' + v;
     }
-    function fmtGBP(v)  { return '£ ' + fmtSpaced(v); }
-    function fmtAxisGBP(v) {
-      if (v >= 1e9) return '£' + (v / 1e9).toFixed(1) + 'B';
-      if (v >= 1e6) return '£' + (v / 1e6).toFixed(0) + 'M';
-      if (v >= 1e3) return '£' + (v / 1e3).toFixed(0) + 'K';
-      return '£' + v;
-    }
-    function fmtCHF(v)  { return '₣ ' + fmtSpaced(v); }
-    function fmtAxisCHF(v) {
-      if (v >= 1e9) return '₣' + (v / 1e9).toFixed(1) + 'B';
-      if (v >= 1e6) return '₣' + (v / 1e6).toFixed(0) + 'M';
-      if (v >= 1e3) return '₣' + (v / 1e3).toFixed(0) + 'K';
-      return '₣' + v;
-    }
-
-    // ── Currency toggle ─────────────────────────────────────────────────────────
-    let fxRatesData    = {};
-    let displayCurrency = 'USD';
-
-    function getLastFxRate(currency, isoDate) {
-      const rates = fxRatesData[currency];
-      if (!rates) return null;
-      let last = null;
-      for (const d of Object.keys(rates).sort()) {
-        if (d <= isoDate) last = rates[d]; else break;
-      }
-      return last;
-    }
-
-    function getMcapTransformFn() {
-      if (displayCurrency === 'USD') return null;
-      return (val, date) => { const r = getLastFxRate(displayCurrency, date); return r ? val / r : val; };
-    }
-
-    function convertMcapToDisplay(usdVal) {
-      if (displayCurrency === 'USD') return usdVal;
-      const today = new Date().toISOString().slice(0, 10);
-      const r = getLastFxRate(displayCurrency, today);
-      return r ? usdVal / r : usdVal;
-    }
-
-    function fmtMcapVal(v) {
-      if (displayCurrency === 'EUR') return fmtEUR(v);
-      if (displayCurrency === 'GBP') return fmtGBP(v);
-      if (displayCurrency === 'CHF') return fmtCHF(v);
-      return fmtUSD(v);
-    }
-    function fmtAxisMcap(v) {
-      if (displayCurrency === 'EUR') return fmtAxisEUR(v);
-      if (displayCurrency === 'GBP') return fmtAxisGBP(v);
-      if (displayCurrency === 'CHF') return fmtAxisCHF(v);
-      return fmtAxisUSD(v);
-    }
-
     function fmtDate(s) {
       const [y, m, d] = s.split('-');
       return `${d}/${m}/${String(y).slice(2)}`;
@@ -910,7 +902,7 @@
     }
 
     // ── Stacked area helpers ────────────────────────────────────────────────────
-    function buildStacked(chains, seriesArr, valueKey, transformFn) {
+    function buildStacked(chains, seriesArr, valueKey) {
       const paired = chains.map((chain, i) => ({
         chain,
         series: seriesArr[i],
@@ -919,11 +911,17 @@
 
       paired.sort((a, b) => a.startDate < b.startDate ? -1 : 1);
 
-      const dateSet = new Set(paired.flatMap(p => p.series.map(d => d.date)));
-      const allDates = [...dateSet].sort();
+      // Build a complete daily range (no gaps) between earliest and latest data date
+      const allExisting = paired.flatMap(p => p.series.map(d => d.date));
+      const minDate = allExisting.reduce((a, b) => a < b ? a : b);
+      const maxDate = allExisting.reduce((a, b) => a > b ? a : b);
+      const allDates = [];
+      for (let cur = new Date(minDate + 'T00:00:00Z'), end = new Date(maxDate + 'T00:00:00Z'); cur <= end; cur.setUTCDate(cur.getUTCDate() + 1)) {
+        allDates.push(cur.toISOString().slice(0, 10));
+      }
 
       const filled = paired.map(({ series, startDate }) => {
-        const map = Object.fromEntries(series.map(d => [d.date, transformFn ? transformFn(d[valueKey], d.date) : d[valueKey]]));
+        const map = Object.fromEntries(series.map(d => [d.date, d[valueKey]]));
         let last = 0;
         return allDates.map(date => {
           if (date < startDate) return 0;
@@ -979,46 +977,28 @@
 
         const date = items[0].label;
         const isoDate = rawDates ? rawDates[items[0].dataIndex] : null;
-        const activeItems = items.filter(i => (i.raw || 0) > 0);
+        // Include series that have started (even if value = 0); exclude only pre-start padding
+        const activeItems = items.filter(item => {
+          const p = paired.find(p => p.chain.label === item.dataset.label);
+          if (!p || !isoDate) return (item.raw ?? 0) > 0;
+          return isoDate >= p.startDate;
+        });
         if (!activeItems.length) return;
-        const total = activeItems.reduce((s, i) => s + i.raw, 0);
+        const total = activeItems.reduce((s, i) => s + (i.raw ?? 0), 0);
 
-        const rows = [...activeItems].sort((a, b) => (b.raw || 0) - (a.raw || 0)).map(item => {
+        const rows = [...activeItems].sort((a, b) => (b.raw ?? 0) - (a.raw ?? 0)).map(item => {
           const chain = paired.find(p => p.chain.label === item.dataset.label)?.chain || {};
           return `<div class="tt-row">
             <div class="tt-dot" style="background:${chain.color || '#888'}"></div>
             <span class="tt-label">${item.dataset.label}</span>
-            <span class="tt-value">${fmtVal(item.raw || 0)}</span>
+            <span class="tt-value">${fmtVal(item.raw ?? 0)}</span>
           </div>`;
         }).join('');
 
-        let rateFooter = '';
-        if (rates && isoDate) {
-          const rEUR = getLastFxRate('EUR', isoDate);
-          const rGBP = getLastFxRate('GBP', isoDate);
-          const rCHF = getLastFxRate('CHF', isoDate);
-          const FX = { EUR: rEUR, GBP: rGBP, CHF: rCHF };
-          const SYM = { EUR: '€', GBP: '£', CHF: '₣', USD: '$' };
-          const OTHERS = ['EUR', 'GBP', 'CHF'].filter(c => c !== displayCurrency);
-
-          if (displayCurrency !== 'USD') {
-            const r = FX[displayCurrency];
-            const parts = [];
-            if (r) parts.push(`1 ${SYM[displayCurrency]} = ${r.toFixed(4)} $`);
-            OTHERS.forEach(c => {
-              const rO = FX[c];
-              if (r && rO) parts.push(`1 ${SYM[displayCurrency]} = ${(r / rO).toFixed(4)} ${SYM[c]}`);
-            });
-            if (parts.length) rateFooter = `<div class="tt-rate">${parts.join('  ·  ')}</div>`;
-          } else {
-            const parts = [];
-            ['EUR', 'GBP', 'CHF'].forEach(c => {
-              const r = FX[c];
-              if (r) parts.push(`1 $ = ${(1 / r).toFixed(4)} ${SYM[c]}`);
-            });
-            if (parts.length) rateFooter = `<div class="tt-rate">${parts.join('  ·  ')}</div>`;
-          }
-        }
+        const rate = getRateForDate(isoDate);
+        const rateFooter = rate
+          ? `<div class="tt-rate">${currentCurrency === 'EUR' ? `1 $ = ${(1/rate).toFixed(4)} €` : `1 € = ${rate.toFixed(4)} $`}</div>`
+          : '';
 
         el.innerHTML = `
           <div class="tt-header">
@@ -1153,22 +1133,22 @@
     }
 
     // ── Pie chart ───────────────────────────────────────────────────────────────
-    function getLatestValues(seriesArr, valueKey, transformFn) {
+    function getLatestValues(seriesArr, valueKey) {
       return seriesArr.map(series => {
         if (!series || !series.length) return 0;
         for (let i = series.length - 1; i >= 0; i--) {
           const v = series[i][valueKey];
-          if (v != null && v > 0) return transformFn ? transformFn(v, series[i].date) : v;
+          if (v != null && v > 0) return v;
         }
         return 0;
       });
     }
 
-    function buildPieChart(canvasId, seriesArr, chains, valueKey, fmtVal, transformFn) {
+    function buildPieChart(canvasId, seriesArr, chains, valueKey, fmtVal) {
       const ctx     = document.getElementById(canvasId).getContext('2d');
       const chartId = canvasId.replace(/^chart-/, '');
       const saved   = hiddenStates[chartId] || {};
-      const values  = getLatestValues(seriesArr, valueKey, transformFn);
+      const values  = getLatestValues(seriesArr, valueKey);
       const active  = chains.map((chain, i) => ({ chain, value: values[i] })).filter(d => d.value > 0);
       const baseBg  = active.map(d => d.chain.color + 'CC');  // visibility handled by toggleDataVisibility, not opacity
 
@@ -1346,6 +1326,59 @@
       return pieChart;
     }
 
+    // ── EUR/USD rates ───────────────────────────────────────────────────────────
+    const FALLBACK_RATE = 1.08;
+
+    async function loadEurUsdRates() {
+      try {
+        const resp = await fetch('data/eurusd_rates.json');
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        return await resp.json();
+      } catch (e) {
+        console.warn('[EUR/USD] Failed to load eurusd_rates.json:', e.message ?? e);
+        document.getElementById('rate-warning').style.display = '';
+        return {};
+      }
+    }
+
+    // EURCV: supply is in EUR → marketcap (USD) = supply × rate
+    // Iterates over union of supply dates + rate dates so daily FX moves are reflected
+    function applyEurUsdRates(supplyData, rates) {
+      if (!supplyData.length) return supplyData;
+      const rateKeys  = Object.keys(rates);
+      if (!rateKeys.length) return supplyData.map(item => ({ ...item, marketcap: Math.round(item.supply * FALLBACK_RATE * 100) / 100 }));
+      const supplyMap = Object.fromEntries(supplyData.map(d => [d.date, d.supply]));
+      const allDates  = [...new Set([...supplyData.map(d => d.date), ...rateKeys])].sort();
+      let lastSupply = 0, lastRate = FALLBACK_RATE;
+      const result = [];
+      for (const date of allDates) {
+        if (date in supplyMap) lastSupply = supplyMap[date];
+        if (date in rates)     lastRate   = rates[date];
+        if (lastSupply <= 0) continue;
+        result.push({ date, supply: lastSupply, marketcap: Math.round(lastSupply * lastRate * 100) / 100 });
+      }
+      return result;
+    }
+
+    // USDCV: supply is in USD → supply_eur = supply / rate
+    // Same approach: daily FX fluctuations reflected even when supply is unchanged
+    function applyUsdcvRates(supplyData, rates) {
+      if (!supplyData.length) return supplyData;
+      const rateKeys  = Object.keys(rates);
+      if (!rateKeys.length) return supplyData.map(item => ({ ...item, supply_eur: Math.round(item.supply / FALLBACK_RATE * 100) / 100 }));
+      const supplyMap = Object.fromEntries(supplyData.map(d => [d.date, d.supply]));
+      const allDates  = [...new Set([...supplyData.map(d => d.date), ...rateKeys])].sort();
+      let lastSupply = 0, lastRate = FALLBACK_RATE;
+      const result = [];
+      for (const date of allDates) {
+        if (date in supplyMap) lastSupply = supplyMap[date];
+        if (date in rates)     lastRate   = rates[date];
+        if (lastSupply <= 0) continue;
+        result.push({ date, supply: lastSupply, supply_eur: Math.round(lastSupply / lastRate * 100) / 100 });
+      }
+      return result;
+    }
+
     // ── KPI helpers ─────────────────────────────────────────────────────────────
     function getLatestValue(series, key) {
       if (!series || !series.length) return 0;
@@ -1372,82 +1405,103 @@
     }
 
     function buildKpiCards() {
-      // ── Aggregate mcap & holders across all tokens and chains ──────────────
-      const chainTotals   = {};  // { chainLabel: { mcap, holders } }
-      const tokenTotals   = TOKEN_DEFS.map(def => {
-        const mcap    = state[def.id].mcapData.reduce((s, series) => s + getLatestValue(series, 'marketcap'), 0);
-        const holders = state[def.id].holdersData.reduce((s, series) => s + getLatestValue(series, 'holders'), 0);
+      // Chain metadata
+      const ALL_CHAINS = [
+        { label: 'Ethereum',   color: '#627EEA' },
+        { label: 'Solana',     color: '#9945FF' },
+        { label: 'XRP Ledger', color: '#00B4A0' },
+        { label: 'Stellar',    color: '#2D9CDB' },
+      ];
+      const TOKEN_META = [
+        { label: 'EURCV', color: '#6B7FD4' },
+        { label: 'USDCV', color: '#9B6DC5' },
+      ];
 
-        def.chainDefs.forEach((ch, i) => {
-          if (!chainTotals[ch.label]) chainTotals[ch.label] = { color: ch.color, mcap: 0, holders: 0 };
-          chainTotals[ch.label].mcap    += getLatestValue(state[def.id].mcapData[i],    'marketcap');
-          chainTotals[ch.label].holders += getLatestValue(state[def.id].holdersData[i], 'holders');
-        });
+      // ── Currency-aware keys & formatters ──────────────────────────────────
+      const isUSD      = currentCurrency === 'USD';
+      const eurcvMcKey = isUSD ? 'marketcap' : 'supply';
+      const usdcvMcKey = isUSD ? 'supply'    : 'supply_eur';
+      const mcapSym    = isUSD ? '$' : '€';
 
-        return { ...def, mcap, holders };
-      });
+      // ── Latest market cap per chain & token ────────────────────────────────
+      const eurcvMcapLatest = state.eurcv.mcapData.map(s => getLatestValue(s, eurcvMcKey));
+      const usdcvMcapLatest = state.usdcv.mcapData.map(s => getLatestValue(s, usdcvMcKey));
+      const eurcvTotal = eurcvMcapLatest.reduce((a, b) => a + b, 0);
+      const usdcvTotal = usdcvMcapLatest.reduce((a, b) => a + b, 0);
+      const grandMcap  = eurcvTotal + usdcvTotal;
 
-      const grandMcap    = tokenTotals.reduce((s, t) => s + t.mcap,    0);
-      const grandHolders = tokenTotals.reduce((s, t) => s + t.holders, 0);
+      // ── Per-chain market cap ───────────────────────────────────────────────
+      const chainMcaps = ALL_CHAINS.map((ch, i) => ({
+        ...ch,
+        value: (eurcvMcapLatest[i] || 0) + (i < usdcvMcapLatest.length ? usdcvMcapLatest[i] : 0),
+      })).sort((a, b) => b.value - a.value);
 
-      const chainMcapArr    = Object.entries(chainTotals).map(([label, v]) => ({ label, color: v.color, value: v.mcap    })).sort((a, b) => b.value - a.value);
-      const chainHoldersArr = Object.entries(chainTotals).map(([label, v]) => ({ label, color: v.color, value: v.holders })).sort((a, b) => b.value - a.value);
+      // ── Latest holders per chain & token ──────────────────────────────────
+      const eurcvHoldLatest = state.eurcv.holdersData.map(s => getLatestValue(s, 'holders'));
+      const usdcvHoldLatest = state.usdcv.holdersData.map(s => getLatestValue(s, 'holders'));
+      const eurcvHoldTotal  = eurcvHoldLatest.reduce((a, b) => a + b, 0);
+      const usdcvHoldTotal  = usdcvHoldLatest.reduce((a, b) => a + b, 0);
+      const grandHolders    = eurcvHoldTotal + usdcvHoldTotal;
 
-      // ── Apply currency conversion for display ─────────────────────────────
-      const sym          = displayCurrency === 'EUR' ? '€' : displayCurrency === 'GBP' ? '£' : displayCurrency === 'CHF' ? '₣' : '$';
-      const dispGrand    = convertMcapToDisplay(grandMcap);
-      const dispTokens   = tokenTotals.map(t => ({ ...t, mcap: convertMcapToDisplay(t.mcap) }));
-      const dispChains   = chainMcapArr.map(c => ({ ...c, value: convertMcapToDisplay(c.value) }));
+      // ── Per-chain holders ─────────────────────────────────────────────────
+      const chainHolders = ALL_CHAINS.map((ch, i) => ({
+        ...ch,
+        value: (eurcvHoldLatest[i] || 0) + (i < usdcvHoldLatest.length ? usdcvHoldLatest[i] : 0),
+      })).sort((a, b) => b.value - a.value);
 
-      // ── Card 1 — Total Market Cap ─────────────────────────────────────────
+      // ── Render Card 1 — Total Market Cap ──────────────────────────────────
       document.getElementById('kpi-total-mcap').innerHTML = `
-        <div class="kpi-label">Total Market Cap (${displayCurrency})</div>
-        <div class="kpi-main">${fmtKpiMcap(dispGrand, sym)}</div>
+        <div class="kpi-label">Total Market Cap (${currentCurrency})</div>
+        <div class="kpi-main">${fmtKpiMcap(grandMcap, mcapSym)}</div>
         <div class="kpi-details">
-          ${dispTokens.filter(t => t.mcap > 0).sort((a,b) => b.mcap - a.mcap).map(t => `
-            <div class="kpi-row">
+          ${TOKEN_META.map((t, i) => {
+            const val = i === 0 ? eurcvTotal : usdcvTotal;
+            return `<div class="kpi-row">
               <div class="kpi-dot" style="background:${t.color}"></div>
-              <span class="kpi-row-name">${t.ticker}</span>
-              <span class="kpi-row-val">${fmtDetailMcap(t.mcap, sym)}</span>
-              <span class="kpi-row-pct">(${pct(t.mcap, dispGrand)})</span>
-            </div>`).join('')}
+              <span class="kpi-row-name">${t.label}</span>
+              <span class="kpi-row-val">${fmtDetailMcap(val, mcapSym)}</span>
+              <span class="kpi-row-pct">(${pct(val, grandMcap)})</span>
+            </div>`;
+          }).join('')}
         </div>`;
 
-      // ── Card 2 — Market Cap by Chain ──────────────────────────────────────
-      const [topChainMcap, ...otherChainsMcap] = dispChains.filter(c => c.value > 0);
+      // ── Render Card 2 — Market Cap by Chain ───────────────────────────────
+      const [topChainMcap, ...otherChainsMcap] = chainMcaps.filter(c => c.value > 0);
       document.getElementById('kpi-chain-mcap').innerHTML = `
-        <div class="kpi-label">Market Cap par Chaîne (${displayCurrency})</div>
+        <div class="kpi-label">Market Cap par Chaîne (${currentCurrency})</div>
         ${topChainMcap ? `
-          <div class="kpi-main">${fmtKpiMcap(topChainMcap.value, sym)}</div>
-          <div class="kpi-main-sub"><span style="color:${topChainMcap.color}">${topChainMcap.label}</span> <span class="kpi-row-pct">(${pct(topChainMcap.value, dispGrand)})</span></div>
+          <div class="kpi-main">${fmtKpiMcap(topChainMcap.value, mcapSym)}</div>
+          <div class="kpi-main-sub"><span style="color:${topChainMcap.color}">${topChainMcap.label}</span> <span class="kpi-row-pct">(${pct(topChainMcap.value, grandMcap)})</span></div>
         ` : '<div class="kpi-main">—</div>'}
         <div class="kpi-details">
           ${otherChainsMcap.map(c => `
             <div class="kpi-row">
               <div class="kpi-dot" style="background:${c.color}"></div>
               <span class="kpi-row-name">${c.label}</span>
-              <span class="kpi-row-val">${fmtDetailMcap(c.value, sym)}</span>
-              <span class="kpi-row-pct">(${pct(c.value, dispGrand)})</span>
+              <span class="kpi-row-val">${fmtDetailMcap(c.value, mcapSym)}</span>
+              <span class="kpi-row-pct">(${pct(c.value, grandMcap)})</span>
             </div>`).join('')}
         </div>`;
 
-      // ── Card 3 — Total Holders ────────────────────────────────────────────
+      // ── Render Card 3 — Total Holders ─────────────────────────────────────
       document.getElementById('kpi-total-holders').innerHTML = `
         <div class="kpi-label">Total Holders</div>
         <div class="kpi-main">${fmtSpaced(grandHolders)}</div>
         <div class="kpi-note-tiny">* comptage cross-chaîne non dédupliqué</div>
         <div class="kpi-details">
-          ${tokenTotals.filter(t => t.holders > 0).sort((a,b) => b.holders - a.holders).map(t => `
-            <div class="kpi-row">
+          ${TOKEN_META.map((t, i) => {
+            const val = i === 0 ? eurcvHoldTotal : usdcvHoldTotal;
+            return `<div class="kpi-row">
               <div class="kpi-dot" style="background:${t.color}"></div>
-              <span class="kpi-row-name">${t.ticker}</span>
-              <span class="kpi-row-val">${fmtSpaced(t.holders)}</span>
-              <span class="kpi-row-pct">(${pct(t.holders, grandHolders)})</span>
-            </div>`).join('')}
+              <span class="kpi-row-name">${t.label}</span>
+              <span class="kpi-row-val">${fmtSpaced(val)}</span>
+              <span class="kpi-row-pct">(${pct(val, grandHolders)})</span>
+            </div>`;
+          }).join('')}
         </div>`;
 
-      // ── Card 4 — Holders by Chain ─────────────────────────────────────────
-      const [topChainH, ...othersH] = chainHoldersArr.filter(c => c.value > 0);
+      // ── Render Card 4 — Holders by Chain ──────────────────────────────────
+      const [topChainH, ...othersH] = chainHolders.filter(c => c.value > 0);
       document.getElementById('kpi-chain-holders').innerHTML = `
         <div class="kpi-label">Holders par Chaîne</div>
         ${topChainH ? `
@@ -1466,9 +1520,17 @@
     }
 
     // ── Global overview helpers ─────────────────────────────────────────────────
-    // Built lazily from TOKEN_DEFS after it's declared — see bottom of script.
-    let GLOBAL_TOKEN_CHAINS = [];
-    let GLOBAL_CHAIN_CHAINS = Object.entries(CHAIN_COLORS).map(([label, color]) => ({ label, color }));
+    const GLOBAL_TOKEN_CHAINS = [
+      { label: 'EURCV', color: '#6B7FD4' },
+      { label: 'USDCV', color: '#9B6DC5' },
+    ];
+
+    const GLOBAL_CHAIN_CHAINS = [
+      { label: 'Ethereum',   color: '#627EEA' },
+      { label: 'Solana',     color: '#9945FF' },
+      { label: 'XRP Ledger', color: '#00B4A0' },
+      { label: 'Stellar',    color: '#2D9CDB' },
+    ];
 
     // Merge N series [{series, key}] → [{date, value}] summed per day with forward-fill
     function mergeSeries(inputs) {
@@ -1496,10 +1558,10 @@
     const fmtAxisH = v => fmtSpaced(v);
 
     const globalData = {
-      'mcap-token':    { mode: 'line', chart: null, chains: null, seriesArr: null, fmtVal: fmtUSD, fmtAxis: fmtAxisUSD },
-      'mcap-chain':    { mode: 'line', chart: null, chains: null, seriesArr: null, fmtVal: fmtUSD, fmtAxis: fmtAxisUSD },
-      'holders-token': { mode: 'line', chart: null, chains: null, seriesArr: null, fmtVal: fmtH,   fmtAxis: fmtAxisH   },
-      'holders-chain': { mode: 'line', chart: null, chains: null, seriesArr: null, fmtVal: fmtH,   fmtAxis: fmtAxisH   },
+      'mcap-token':    { mode: 'line', chart: null, chains: null, seriesArr: null, fmtVal: fmtUSD,  fmtAxis: fmtAxisUSD, useRates: true  },
+      'mcap-chain':    { mode: 'line', chart: null, chains: null, seriesArr: null, fmtVal: fmtUSD,  fmtAxis: fmtAxisUSD, useRates: true  },
+      'holders-token': { mode: 'line', chart: null, chains: null, seriesArr: null, fmtVal: fmtH,    fmtAxis: fmtAxisH,   useRates: false },
+      'holders-chain': { mode: 'line', chart: null, chains: null, seriesArr: null, fmtVal: fmtH,    fmtAxis: fmtAxisH,   useRates: false },
     };
 
     function rebuildGlobalChart(id) {
@@ -1507,12 +1569,8 @@
       const canvasId = 'chart-global-' + id;
 
       // ── Smooth in-place update (currency switch on an existing line chart) ──
-      const isMcap = id.startsWith('mcap-');
-      if (isMcap) { d.fmtVal = fmtMcapVal; d.fmtAxis = fmtAxisMcap; }
-      const transformFn = isMcap ? getMcapTransformFn() : null;
-
       if (isSmoothing && d.chart && d.mode === 'line') {
-        const stacked = buildStacked(d.chains, d.seriesArr, 'value', transformFn);
+        const stacked = buildStacked(d.chains, d.seriesArr, 'value');
         // datasets are stored in reversed-paired order: dataset[i] = paired[n-1-i]
         stacked.filled.forEach((fillData, pi) => {
           const di = stacked.paired.length - 1 - pi;
@@ -1521,7 +1579,7 @@
         d.chart.data.labels = stacked.labels;
         d.chart.options.scales.y.ticks.callback = d.fmtAxis;
         d.chart.options.plugins.tooltip.external = makeTooltipHandler(
-          d.fmtVal, stacked.paired, isMcap ? fxRatesData['EUR'] : null, stacked.rawDates
+          d.fmtVal, stacked.paired, d.useRates ? eurusdRates : null, stacked.rawDates
         );
         d.chart.update();
         syncModeButtons(id, d.mode);
@@ -1532,10 +1590,9 @@
       const wrap = document.getElementById(canvasId).parentElement;
       wrap.innerHTML = `<canvas id="${canvasId}"></canvas>`;
       if (d.mode === 'line') {
-        d.chart = buildLineChart(canvasId, buildStacked(d.chains, d.seriesArr, 'value', transformFn), d.fmtVal, d.fmtAxis,
-          isMcap ? fxRatesData['EUR'] : null);
+        d.chart = buildLineChart(canvasId, buildStacked(d.chains, d.seriesArr, 'value'), d.fmtVal, d.fmtAxis, d.useRates ? eurusdRates : null);
       } else {
-        d.chart = buildPieChart(canvasId, d.seriesArr, d.chains, 'value', d.fmtVal, transformFn);
+        d.chart = buildPieChart(canvasId, d.seriesArr, d.chains, 'value', d.fmtVal);
       }
       syncModeButtons(id, d.mode);
     }
@@ -1554,98 +1611,116 @@
       rebuildGlobalChart(id);
     }
 
-    function setCurrency(c) {
-      displayCurrency = c;
-      document.getElementById('currency-select').value = c;
-
-      // Rebuild global mcap charts (titles update inside rebuildGlobalChart via fmtVal)
-      rebuildGlobalChart('mcap-token');
-      rebuildGlobalChart('mcap-chain');
-
-      // Update global chart titles
-      const titleToken = document.getElementById('global-mcap-token-title');
-      const titleChain = document.getElementById('global-mcap-chain-title');
-      if (titleToken) titleToken.textContent = `Total Market Cap par Token (${c})`;
-      if (titleChain) titleChain.textContent = `Total Market Cap par Chaîne (${c})`;
-
-      // Rebuild KPI cards and tracker table
-      buildKpiCards();
-      buildTrackerTable();
-
-      // Rebuild per-token mcap chart if accordion is open
-      if (openToken) {
-        rebuildChart(openToken, 'mcap');
-        const titleEl = document.getElementById(`${openToken}-mcap-title`);
-        if (titleEl) titleEl.textContent = `Market Capitalisation (${c})`;
-      }
-    }
-
     function buildGlobalCharts() {
+      const isUSD      = currentCurrency === 'USD';
+      const eurcvMcKey = isUSD ? 'marketcap' : 'supply';
+      const usdcvMcKey = isUSD ? 'supply'    : 'supply_eur';
+      const fmtMcVal   = isUSD ? fmtUSD   : fmtEUR;
+      const fmtMcAxis  = isUSD ? fmtAxisUSD : fmtAxisEUR;
+      const mcapLabel  = isUSD ? 'USD' : 'EUR';
+
+      document.getElementById('global-mcap-token-title').textContent = `Total Market Cap par Token (${mcapLabel})`;
+      document.getElementById('global-mcap-chain-title').textContent = `Total Market Cap par Chaîne (${mcapLabel})`;
+
       // ── Market Cap by Token ─────────────────────────────────────────────────
+      const eurcvMcapTotal = mergeSeries(state.eurcv.mcapData.map(s => ({ series: s, key: eurcvMcKey })));
+      const usdcvMcapTotal = mergeSeries(state.usdcv.mcapData.map(s => ({ series: s, key: usdcvMcKey })));
       globalData['mcap-token'].chains    = GLOBAL_TOKEN_CHAINS;
-      globalData['mcap-token'].seriesArr = TOKEN_DEFS.map(def =>
-        mergeSeries(state[def.id].mcapData.map(s => ({ series: s, key: 'marketcap' })))
-      );
-      globalData['mcap-token'].fmtVal  = fmtMcapVal;
-      globalData['mcap-token'].fmtAxis = fmtAxisMcap;
+      globalData['mcap-token'].seriesArr = [eurcvMcapTotal, usdcvMcapTotal];
+      globalData['mcap-token'].fmtVal    = fmtMcVal;
+      globalData['mcap-token'].fmtAxis   = fmtMcAxis;
+      globalData['mcap-token'].useRates  = true;
       rebuildGlobalChart('mcap-token');
 
       // ── Market Cap by Chain ─────────────────────────────────────────────────
       globalData['mcap-chain'].chains    = GLOBAL_CHAIN_CHAINS;
-      globalData['mcap-chain'].seriesArr = GLOBAL_CHAIN_CHAINS.map(ch =>
-        mergeSeries(TOKEN_DEFS.flatMap(def => {
-          const idx = def.chainDefs.findIndex(c => c.label === ch.label);
-          return idx < 0 ? [] : [{ series: state[def.id].mcapData[idx], key: 'marketcap' }];
-        }))
-      );
-      globalData['mcap-chain'].fmtVal  = fmtMcapVal;
-      globalData['mcap-chain'].fmtAxis = fmtAxisMcap;
+      globalData['mcap-chain'].seriesArr = [
+        mergeSeries([{ series: state.eurcv.mcapData[0], key: eurcvMcKey }, { series: state.usdcv.mcapData[0], key: usdcvMcKey }]),
+        mergeSeries([{ series: state.eurcv.mcapData[1], key: eurcvMcKey }, { series: state.usdcv.mcapData[1], key: usdcvMcKey }]),
+        mergeSeries([{ series: state.eurcv.mcapData[2], key: eurcvMcKey }]),
+        mergeSeries([{ series: state.eurcv.mcapData[3], key: eurcvMcKey }]),
+      ];
+      globalData['mcap-chain'].fmtVal   = fmtMcVal;
+      globalData['mcap-chain'].fmtAxis  = fmtMcAxis;
+      globalData['mcap-chain'].useRates = true;
       rebuildGlobalChart('mcap-chain');
 
       // ── Holders by Token ────────────────────────────────────────────────────
+      const eurcvHoldersTotal = mergeSeries(state.eurcv.holdersData.map(s => ({ series: s, key: 'holders' })));
+      const usdcvHoldersTotal = mergeSeries(state.usdcv.holdersData.map(s => ({ series: s, key: 'holders' })));
       globalData['holders-token'].chains    = GLOBAL_TOKEN_CHAINS;
-      globalData['holders-token'].seriesArr = TOKEN_DEFS.map(def =>
-        mergeSeries(state[def.id].holdersData.map(s => ({ series: s, key: 'holders' })))
-      );
+      globalData['holders-token'].seriesArr = [eurcvHoldersTotal, usdcvHoldersTotal];
       rebuildGlobalChart('holders-token');
 
       // ── Holders by Chain ────────────────────────────────────────────────────
       globalData['holders-chain'].chains    = GLOBAL_CHAIN_CHAINS;
-      globalData['holders-chain'].seriesArr = GLOBAL_CHAIN_CHAINS.map(ch =>
-        mergeSeries(TOKEN_DEFS.flatMap(def => {
-          const idx = def.chainDefs.findIndex(c => c.label === ch.label);
-          return idx < 0 ? [] : [{ series: state[def.id].holdersData[idx], key: 'holders' }];
-        }))
-      );
+      globalData['holders-chain'].seriesArr = [
+        mergeSeries([{ series: state.eurcv.holdersData[0], key: 'holders' }, { series: state.usdcv.holdersData[0], key: 'holders' }]),
+        mergeSeries([{ series: state.eurcv.holdersData[1], key: 'holders' }, { series: state.usdcv.holdersData[1], key: 'holders' }]),
+        mergeSeries([{ series: state.eurcv.holdersData[2], key: 'holders' }]),
+        mergeSeries([{ series: state.eurcv.holdersData[3], key: 'holders' }]),
+      ];
       rebuildGlobalChart('holders-chain');
     }
 
     // ── State ───────────────────────────────────────────────────────────────────
-    let isSmoothing = false;
+    let currentCurrency = 'USD';
+    let isSmoothing     = false;   // true during setCurrency → enables in-place chart data update
+    // Persistent hidden-series state: { [chartId]: { [seriesLabel]: boolean } }
+    // chartId = canvasId without the "chart-" prefix (e.g. "eurcv-mcap", "global-mcap-token")
     const hiddenStates = {};
+    let eurusdRates     = {};
 
-    // Built from TOKEN_DEFS once it's declared (see below)
-    const state = {};
+    const state = {
+      eurcv: { mcapMode: 'line', holdersMode: 'line', mcapData: null, holdersData: null, mcapChart: null, holdersChart: null },
+      usdcv: { mcapMode: 'line', holdersMode: 'line', mcapData: null, holdersData: null, mcapChart: null, holdersChart: null },
+    };
 
     // ── Rebuild chart (accordion) ───────────────────────────────────────────────
     function rebuildChart(token, type) {
-      const s      = state[token];
-      const def    = TOKEN_DEFS.find(d => d.id === token);
-      const chains = def ? def.chainDefs : [];
+      const s = state[token];
+      const chains = token === 'eurcv' ? EURCV_CHAINS : USDCV_CHAINS;
       const canvasId = `chart-${token}-${type}`;
       const canvas = document.getElementById(canvasId);
-      if (!canvas) return;
+      if (!canvas) return; // accordion not open
 
       if (type === 'mcap') {
+        const isUSD    = currentCurrency === 'USD';
+        const fmtVal   = isUSD ? fmtUSD : fmtEUR;
+        const fmtAxis  = isUSD ? fmtAxisUSD : fmtAxisEUR;
+        const valueKey = token === 'eurcv'
+          ? (isUSD ? 'marketcap' : 'supply')
+          : (isUSD ? 'supply'    : 'supply_eur');
+
+        // Smooth in-place update when just switching currency on a line chart
+        if (isSmoothing && s.mcapChart && s.mcapMode === 'line') {
+          const stacked = buildStacked(chains, s.mcapData, valueKey);
+          stacked.filled.forEach((fillData, pi) => {
+            const di = stacked.paired.length - 1 - pi;
+            if (s.mcapChart.data.datasets[di]) s.mcapChart.data.datasets[di].data = fillData;
+          });
+          s.mcapChart.data.labels = stacked.labels;
+          s.mcapChart.options.scales.y.ticks.callback = fmtAxis;
+          s.mcapChart.options.plugins.tooltip.external = makeTooltipHandler(
+            fmtVal, stacked.paired, eurusdRates, stacked.rawDates
+          );
+          s.mcapChart.update();
+          const titleEl = document.getElementById(`${token}-mcap-title`);
+          if (titleEl) titleEl.textContent = `Market Capitalisation (${currentCurrency})`;
+          return;
+        }
+
         if (s.mcapChart) { s.mcapChart.destroy(); s.mcapChart = null; }
         const wrap = canvas.parentElement;
         wrap.innerHTML = `<canvas id="${canvasId}"></canvas>`;
         if (s.mcapMode === 'line') {
-          s.mcapChart = buildLineChart(canvasId, buildStacked(chains, s.mcapData, 'marketcap', getMcapTransformFn()), fmtMcapVal, fmtAxisMcap,
-            fxRatesData['EUR']);
+          s.mcapChart = buildLineChart(canvasId, buildStacked(chains, s.mcapData, valueKey), fmtVal, fmtAxis, eurusdRates);
         } else {
-          s.mcapChart = buildPieChart(canvasId, s.mcapData, chains, 'marketcap', fmtMcapVal, getMcapTransformFn());
+          s.mcapChart = buildPieChart(canvasId, s.mcapData, chains, valueKey, fmtVal);
         }
+        const titleEl = document.getElementById(`${token}-mcap-title`);
+        if (titleEl) titleEl.textContent = `Market Capitalisation (${currentCurrency})`;
+
       } else {
         if (s.holdersChart) { s.holdersChart.destroy(); s.holdersChart = null; }
         const wrap = canvas.parentElement;
@@ -1676,96 +1751,38 @@
     let trackerSort = { key: 'mcap', dir: 'desc' };
     let openToken   = null;
 
-    const CHAIN_LOGOS = {
-      'Ethereum':  './img/ethereum.png',
-      'Polygon':   './img/polygon.png',
-      'Base':      './img/base.png',
-      'Arbitrum':  './img/arbitrum.png',
-      'Etherlink': './img/etherlink.png',
-      'Stellar':   './img/stellar.png',
-      'Starknet':  './img/starknet.png',
-    };
-
     const TOKEN_DEFS = [
       {
-        id: 'eutbl', name: 'Euro T-Bill', ticker: 'EUTBL',
-        color: '#1A6FFF',
+        id: 'eurcv', name: 'EUR CoinVertible', ticker: 'EURCV',
         peg: { symbol: '€', code: 'EUR' },
-        issuer: 'Spiko', type: 'Tokenisé', mica: 'Oui', integration: 'Natif',
-        logo: './img/eutbl.png', chainDefs: EUTBL_CHAINS,
-        chainLogos: EUTBL_CHAINS.map(c => ({ src: CHAIN_LOGOS[c.label], label: c.label })),
+        issuer: 'SG Forge',
+        type: 'Centralisé',
+        mica: 'Oui',
+        integration: 'Natif',
+        logo: './img/eurcv.png',
+        chainDefs: EURCV_CHAINS,
+        chainLogos: [
+          { src: './img/ethereum.png', label: 'Ethereum' },
+          { src: './img/solana.png',   label: 'Solana'   },
+          { src: './img/xrp.png',      label: 'XRP Ledger' },
+          { src: './img/stellar.png',  label: 'Stellar'  },
+        ],
       },
       {
-        id: 'ustbl', name: 'US T-Bill', ticker: 'USTBL',
-        color: '#10B981',
+        id: 'usdcv', name: 'USD CoinVertible', ticker: 'USDCV',
         peg: { symbol: '$', code: 'USD' },
-        issuer: 'Spiko', type: 'Tokenisé', mica: 'Non', integration: 'Natif',
-        logo: './img/ustbl.png', chainDefs: USTBL_CHAINS,
-        chainLogos: USTBL_CHAINS.map(c => ({ src: CHAIN_LOGOS[c.label], label: c.label })),
-      },
-      {
-        id: 'uktbl', name: 'UK T-Bill', ticker: 'UKTBL',
-        color: '#7C3AED',
-        peg: { symbol: '£', code: 'GBP' },
-        issuer: 'Spiko', type: 'Tokenisé', mica: 'Non', integration: 'Natif',
-        logo: './img/uktbl.png', chainDefs: UKTBL_CHAINS,
-        chainLogos: UKTBL_CHAINS.map(c => ({ src: CHAIN_LOGOS[c.label], label: c.label })),
-      },
-      {
-        id: 'spkcc', name: 'Spiko Cash USD', ticker: 'SPKCC',
-        color: '#38BDF8',
-        peg: { symbol: '$', code: 'USD' },
-        issuer: 'Spiko', type: 'Tokenisé', mica: 'Non', integration: 'Natif',
-        logo: './img/spkcc.png', chainDefs: SPKCC_CHAINS,
-        chainLogos: SPKCC_CHAINS.map(c => ({ src: CHAIN_LOGOS[c.label], label: c.label })),
-      },
-      {
-        id: 'eurspkcc', name: 'Spiko Cash EUR', ticker: 'eurSPKCC',
-        color: '#0EA5E9',
-        peg: { symbol: '€', code: 'EUR' },
-        issuer: 'Spiko', type: 'Tokenisé', mica: 'Oui', integration: 'Natif',
-        logo: './img/eurspkcc.png', chainDefs: EURSPKCC_CHAINS,
-        chainLogos: EURSPKCC_CHAINS.map(c => ({ src: CHAIN_LOGOS[c.label], label: c.label })),
-      },
-      {
-        id: 'safo', name: 'Safe Obligations USD', ticker: 'SAFO',
-        color: '#D97706',
-        peg: { symbol: '$', code: 'USD' },
-        issuer: 'Spiko', type: 'Tokenisé', mica: 'Non', integration: 'Natif',
-        logo: './img/safo.png', chainDefs: SAFO_CHAINS,
-        chainLogos: SAFO_CHAINS.map(c => ({ src: CHAIN_LOGOS[c.label], label: c.label })),
-      },
-      {
-        id: 'eursafo', name: 'Safe Obligations EUR', ticker: 'eurSAFO',
-        color: '#F43F5E',
-        peg: { symbol: '€', code: 'EUR' },
-        issuer: 'Spiko', type: 'Tokenisé', mica: 'Oui', integration: 'Natif',
-        logo: './img/eursafo.png', chainDefs: EURSAFO_CHAINS,
-        chainLogos: EURSAFO_CHAINS.map(c => ({ src: CHAIN_LOGOS[c.label], label: c.label })),
-      },
-      {
-        id: 'gbpsafo', name: 'Safe Obligations GBP', ticker: 'gbpSAFO',
-        color: '#9333EA',
-        peg: { symbol: '£', code: 'GBP' },
-        issuer: 'Spiko', type: 'Tokenisé', mica: 'Non', integration: 'Natif',
-        logo: './img/gbpsafo.png', chainDefs: GBPSAFO_CHAINS,
-        chainLogos: GBPSAFO_CHAINS.map(c => ({ src: CHAIN_LOGOS[c.label], label: c.label })),
-      },
-      {
-        id: 'chfsafo', name: 'Safe Obligations CHF', ticker: 'chfSAFO',
-        color: '#14B8A6',
-        peg: { symbol: 'Fr', code: 'CHF' },
-        issuer: 'Spiko', type: 'Tokenisé', mica: 'Non', integration: 'Natif',
-        logo: './img/chfsafo.png', chainDefs: CHFSAFO_CHAINS,
-        chainLogos: CHFSAFO_CHAINS.map(c => ({ src: CHAIN_LOGOS[c.label], label: c.label })),
+        issuer: 'SG Forge',
+        type: 'Centralisé',
+        mica: 'Oui',
+        integration: 'Natif',
+        logo: './img/usdcv.png',
+        chainDefs: USDCV_CHAINS,
+        chainLogos: [
+          { src: './img/ethereum.png', label: 'Ethereum' },
+          { src: './img/solana.png',   label: 'Solana'   },
+        ],
       },
     ];
-
-    // Populate global token/chain lists from TOKEN_DEFS
-    GLOBAL_TOKEN_CHAINS.push(...TOKEN_DEFS.map(d => ({ label: d.ticker, color: d.color })));
-    TOKEN_DEFS.forEach(d => {
-      state[d.id] = { mcapMode: 'line', holdersMode: 'line', mcapData: null, holdersData: null, mcapChart: null, holdersChart: null };
-    });
 
     // ── Change % helpers ────────────────────────────────────────────────────────
     function isoSubDays(isoDate, days) {
@@ -1794,33 +1811,347 @@
       return (current - prev) / prev * 100;
     }
 
-    function fmtChg(pct) {
-      if (pct === null) return { html: '<span class="chg-zero">—</span>' };
+    function absDiff(current, prev) {
+      if (prev == null) return null;
+      return current - prev;
+    }
+
+    // fmtChg(pct, abs, type)
+    //   type: 'mcap' | 'holders'
+    //   renders % or absolute depending on currentChangeMode
+    function fmtChg(pct, abs, type) {
+      if (currentChangeMode === 'abs' && type) {
+        if (abs === null || abs === undefined) return { html: '<span class="chg-zero">—</span>' };
+        const cls  = abs > 0 ? 'chg-pos' : abs < 0 ? 'chg-neg' : 'chg-zero';
+        const sign = abs > 0 ? '+' : abs < 0 ? '−' : '';
+        const a    = Math.abs(abs);
+        if (type === 'mcap') {
+          const sym = currentCurrency === 'USD' ? '$' : '€';
+          let num;
+          if (a >= 1e9)      num = (a / 1e9).toFixed(2) + 'B';
+          else if (a >= 1e6) num = (a / 1e6).toFixed(2) + 'M';
+          else if (a >= 1e3) num = (a / 1e3).toFixed(1) + 'K';
+          else               num = a.toFixed(0);
+          return { html: `<span class="${cls}">${sign}${num}${sym}</span>` };
+        }
+        // holders
+        return { html: `<span class="${cls}">${sign}${Math.round(a)}</span>` };
+      }
+      // pct mode (default / fallback)
+      if (pct === null || pct === undefined) return { html: '<span class="chg-zero">—</span>' };
       const cls  = pct > 0 ? 'chg-pos' : pct < 0 ? 'chg-neg' : 'chg-zero';
       const sign = pct > 0 ? '+' : '';
       return { html: `<span class="${cls}">${sign}${pct.toFixed(2)}%</span>` };
     }
 
     function getTokenRows() {
+      const isUSD      = currentCurrency === 'USD';
+      const eurcvMcKey = isUSD ? 'marketcap' : 'supply';
+      const usdcvMcKey = isUSD ? 'supply'    : 'supply_eur';
       return TOKEN_DEFS.map(def => {
-        const mcap    = state[def.id].mcapData.reduce((s, series) => s + getLatestValue(series, 'marketcap'), 0);
+        const mcKey   = def.id === 'eurcv' ? eurcvMcKey : usdcvMcKey;
+        const mcap    = state[def.id].mcapData.reduce((s, series) => s + getLatestValue(series, mcKey), 0);
         const holders = state[def.id].holdersData.reduce((s, series) => s + getLatestValue(series, 'holders'), 0);
 
-        const merged = totalMcapSeries(def.id, 'marketcap');
-        if (!merged.length) return { ...def, mcap, holders, chg1d: null, chg7d: null, chg1m: null };
+        // Merged market cap series
+        const merged = totalMcapSeries(def.id, mcKey);
+        let chg1d = null, chg7d = null, chg1m = null;
+        let chg1dAbs = null, chg7dAbs = null, chg1mAbs = null;
+        if (merged.length) {
+          const ld = merged[merged.length - 1].date;
+          const prev1d = valueAtDate(merged, isoSubDays(ld, 1));
+          const prev7d = valueAtDate(merged, isoSubDays(ld, 7));
+          const prev1m = valueAtDate(merged, isoSubDays(ld, 30));
+          chg1d = pctChange(mcap, prev1d); chg1dAbs = absDiff(mcap, prev1d);
+          chg7d = pctChange(mcap, prev7d); chg7dAbs = absDiff(mcap, prev7d);
+          chg1m = pctChange(mcap, prev1m); chg1mAbs = absDiff(mcap, prev1m);
+        }
 
-        const latestDate = merged[merged.length - 1].date;
-        const v1d = valueAtDate(merged, isoSubDays(latestDate, 1));
-        const v7d = valueAtDate(merged, isoSubDays(latestDate, 7));
-        const v1m = valueAtDate(merged, isoSubDays(latestDate, 30));
+        // Merged holders series
+        const mergedH = mergeSeries(state[def.id].holdersData.map(s => ({ series: s, key: 'holders' })));
+        let holdChg1d = null, holdChg7d = null, holdChg1m = null;
+        let holdChg1dAbs = null, holdChg7dAbs = null, holdChg1mAbs = null;
+        if (mergedH.length) {
+          const ld = mergedH[mergedH.length - 1].date;
+          const hPrev1d = valueAtDate(mergedH, isoSubDays(ld, 1));
+          const hPrev7d = valueAtDate(mergedH, isoSubDays(ld, 7));
+          const hPrev1m = valueAtDate(mergedH, isoSubDays(ld, 30));
+          holdChg1d = pctChange(holders, hPrev1d); holdChg1dAbs = absDiff(holders, hPrev1d);
+          holdChg7d = pctChange(holders, hPrev7d); holdChg7dAbs = absDiff(holders, hPrev7d);
+          holdChg1m = pctChange(holders, hPrev1m); holdChg1mAbs = absDiff(holders, hPrev1m);
+        }
 
         return {
           ...def, mcap, holders,
-          chg1d: pctChange(mcap, v1d),
-          chg7d: pctChange(mcap, v7d),
-          chg1m: pctChange(mcap, v1m),
+          chg1d, chg7d, chg1m,
+          chg1dAbs, chg7dAbs, chg1mAbs,
+          holdChg1d, holdChg7d, holdChg1m,
+          holdChg1dAbs, holdChg7dAbs, holdChg1mAbs,
         };
       });
+    }
+
+    function getChainRows() {
+      const isUSD      = currentCurrency === 'USD';
+      const eurcvMcKey = isUSD ? 'marketcap' : 'supply';
+      const usdcvMcKey = isUSD ? 'supply'    : 'supply_eur';
+      return CHAIN_DEFS.map(def => {
+        let mcap = 0, holders = 0;
+        const mcapInputs = [], holdInputs = [];
+        def.sgTokens.forEach(({ tokenId, chainIdx }) => {
+          const mcKey  = tokenId === 'eurcv' ? eurcvMcKey : usdcvMcKey;
+          const mData  = state[tokenId].mcapData[chainIdx];
+          const hData  = state[tokenId].holdersData[chainIdx];
+          mcap    += getLatestValue(mData, mcKey);
+          holders += getLatestValue(hData, 'holders');
+          mcapInputs.push({ series: mData, key: mcKey });
+          holdInputs.push({ series: hData, key: 'holders' });
+        });
+        const mergedMcap    = mergeSeries(mcapInputs);
+        const mergedHolders = mergeSeries(holdInputs);
+        let mcapChg1d = null, mcapChg7d = null, mcapChg1m = null;
+        let mcapChg1dAbs = null, mcapChg7dAbs = null, mcapChg1mAbs = null;
+        let holdChg1d = null, holdChg7d = null, holdChg1m = null;
+        let holdChg1dAbs = null, holdChg7dAbs = null, holdChg1mAbs = null;
+        if (mergedMcap.length) {
+          const ld = mergedMcap[mergedMcap.length - 1].date;
+          const mp1d = valueAtDate(mergedMcap, isoSubDays(ld, 1));
+          const mp7d = valueAtDate(mergedMcap, isoSubDays(ld, 7));
+          const mp1m = valueAtDate(mergedMcap, isoSubDays(ld, 30));
+          mcapChg1d = pctChange(mcap, mp1d); mcapChg1dAbs = absDiff(mcap, mp1d);
+          mcapChg7d = pctChange(mcap, mp7d); mcapChg7dAbs = absDiff(mcap, mp7d);
+          mcapChg1m = pctChange(mcap, mp1m); mcapChg1mAbs = absDiff(mcap, mp1m);
+        }
+        if (mergedHolders.length) {
+          const ld = mergedHolders[mergedHolders.length - 1].date;
+          const hp1d = valueAtDate(mergedHolders, isoSubDays(ld, 1));
+          const hp7d = valueAtDate(mergedHolders, isoSubDays(ld, 7));
+          const hp1m = valueAtDate(mergedHolders, isoSubDays(ld, 30));
+          holdChg1d = pctChange(holders, hp1d); holdChg1dAbs = absDiff(holders, hp1d);
+          holdChg7d = pctChange(holders, hp7d); holdChg7dAbs = absDiff(holders, hp7d);
+          holdChg1m = pctChange(holders, hp1m); holdChg1mAbs = absDiff(holders, hp1m);
+        }
+        return {
+          ...def, mcap, holders,
+          mcapChg1d, mcapChg7d, mcapChg1m,
+          mcapChg1dAbs, mcapChg7dAbs, mcapChg1mAbs,
+          holdChg1d, holdChg7d, holdChg1m,
+          holdChg1dAbs, holdChg7dAbs, holdChg1mAbs,
+        };
+      });
+    }
+
+    // Colors used for token series inside chain accordion charts
+    const TOKEN_SERIES = {
+      eurcv: { label: 'EURCV', color: '#E2601A' },
+      usdcv: { label: 'USDCV', color: '#2D9CDB' },
+    };
+
+    // Per-chain accordion state
+    const chainState = {};
+    CHAIN_DEFS.forEach(def => {
+      chainState[def.id] = { mcapMode: 'line', holdersMode: 'line', mcapChart: null, holdersChart: null };
+    });
+    let openChain = null;
+
+    function makeChainExpandInner(chainId) {
+      const currency = currentCurrency;
+      return `
+        <div class="expand-chart-card">
+          <div class="card-header">
+            <h2 id="${chainId}-chain-mcap-title">Market Capitalisation (${currency})</h2>
+            <div class="toggle-wrap">
+              <button class="toggle-btn active" id="${chainId}-chain-mcap-btn-line" onclick="setChainView('${chainId}','mcap','line')" title="Courbe">${SVG_LINE}</button>
+              <button class="toggle-btn"        id="${chainId}-chain-mcap-btn-pie"  onclick="setChainView('${chainId}','mcap','pie')"  title="Camembert">${SVG_PIE}</button>
+            </div>
+          </div>
+          <div class="chart-wrap"><canvas id="chart-${chainId}-chain-mcap"></canvas></div>
+        </div>
+        <div class="expand-chart-card">
+          <div class="card-header">
+            <h2>Nombre de Holders</h2>
+            <div class="toggle-wrap">
+              <button class="toggle-btn active" id="${chainId}-chain-holders-btn-line" onclick="setChainView('${chainId}','holders','line')" title="Courbe">${SVG_LINE}</button>
+              <button class="toggle-btn"        id="${chainId}-chain-holders-btn-pie"  onclick="setChainView('${chainId}','holders','pie')"  title="Camembert">${SVG_PIE}</button>
+            </div>
+          </div>
+          <div class="chart-wrap"><canvas id="chart-${chainId}-chain-holders"></canvas></div>
+        </div>`;
+    }
+
+    function rebuildChainChart(chainId, type) {
+      const chainDef = CHAIN_DEFS.find(d => d.id === chainId);
+      if (!chainDef) return;
+      const s = chainState[chainId];
+      const isUSD    = currentCurrency === 'USD';
+      const canvasId = `chart-${chainId}-chain-${type}`;
+      const canvas   = document.getElementById(canvasId);
+      if (!canvas) return;
+      const chains   = chainDef.sgTokens.map(t => ({ ...TOKEN_SERIES[t.tokenId] }));
+
+      if (type === 'mcap') {
+        const fmtVal  = isUSD ? fmtUSD : fmtEUR;
+        const fmtAxis = isUSD ? fmtAxisUSD : fmtAxisEUR;
+        // Normalise each token's mcap series to a common 'val' key
+        const series = chainDef.sgTokens.map(t => {
+          const mcKey = t.tokenId === 'eurcv' ? (isUSD ? 'marketcap' : 'supply') : (isUSD ? 'supply' : 'supply_eur');
+          return (state[t.tokenId].mcapData[t.chainIdx] || []).map(pt => ({ date: pt.date, val: pt[mcKey] || 0 }));
+        });
+
+        // Smooth in-place update when switching currency on an existing line chart
+        if (isSmoothing && s.mcapChart && s.mcapMode === 'line') {
+          const stacked = buildStacked(chains, series, 'val');
+          stacked.filled.forEach((fillData, pi) => {
+            const di = stacked.paired.length - 1 - pi;
+            if (s.mcapChart.data.datasets[di]) s.mcapChart.data.datasets[di].data = fillData;
+          });
+          s.mcapChart.data.labels = stacked.labels;
+          s.mcapChart.options.scales.y.ticks.callback = fmtAxis;
+          s.mcapChart.options.plugins.tooltip.external = makeTooltipHandler(fmtVal, stacked.paired, eurusdRates, stacked.rawDates);
+          s.mcapChart.update();
+          const titleEl = document.getElementById(`${chainId}-chain-mcap-title`);
+          if (titleEl) titleEl.textContent = `Market Capitalisation (${currentCurrency})`;
+          return;
+        }
+
+        if (s.mcapChart) { s.mcapChart.destroy(); s.mcapChart = null; }
+        canvas.parentElement.innerHTML = `<canvas id="${canvasId}"></canvas>`;
+        if (s.mcapMode === 'line') {
+          s.mcapChart = buildLineChart(canvasId, buildStacked(chains, series, 'val'), fmtVal, fmtAxis, eurusdRates);
+        } else {
+          s.mcapChart = buildPieChart(canvasId, series, chains, 'val', fmtVal);
+        }
+        const titleEl = document.getElementById(`${chainId}-chain-mcap-title`);
+        if (titleEl) titleEl.textContent = `Market Capitalisation (${currentCurrency})`;
+
+      } else {
+        const fmtVal  = v => fmtSpaced(v) + ' holders';
+        const fmtAxis = v => fmtSpaced(v);
+        const series  = chainDef.sgTokens.map(t => state[t.tokenId].holdersData[t.chainIdx] || []);
+        if (s.holdersChart) { s.holdersChart.destroy(); s.holdersChart = null; }
+        canvas.parentElement.innerHTML = `<canvas id="${canvasId}"></canvas>`;
+        if (s.holdersMode === 'line') {
+          s.holdersChart = buildLineChart(canvasId, buildStacked(chains, series, 'holders'), fmtVal, fmtAxis);
+        } else {
+          s.holdersChart = buildPieChart(canvasId, series, chains, 'holders', fmtVal);
+        }
+      }
+    }
+
+    function setChainView(chainId, type, mode) {
+      const s = chainState[chainId];
+      if (!s) return;
+      if (type === 'mcap') s.mcapMode = mode; else s.holdersMode = mode;
+      document.getElementById(`${chainId}-chain-${type}-btn-line`)?.classList.toggle('active', mode === 'line');
+      document.getElementById(`${chainId}-chain-${type}-btn-pie`)?.classList.toggle('active', mode === 'pie');
+      rebuildChainChart(chainId, type);
+    }
+
+    function toggleChainAccordion(chainId) {
+      const wasOpen = openChain === chainId;
+      if (openChain) {
+        document.getElementById(`chain-expand-${openChain}`)?.style.setProperty('max-height', '0');
+        ['mcap', 'holders'].forEach(t => {
+          const k = t + 'Chart';
+          if (chainState[openChain][k]) { chainState[openChain][k].destroy(); chainState[openChain][k] = null; }
+        });
+        document.querySelector(`.chain-row[data-chain="${openChain}"]`)?.classList.remove('is-open');
+        document.querySelector(`.chain-row[data-chain="${openChain}"] .row-arrow`)?.classList.remove('open');
+        openChain = null;
+      }
+      if (!wasOpen) {
+        openChain = chainId;
+        const body = document.getElementById(`chain-expand-${chainId}`);
+        document.querySelector(`.chain-row[data-chain="${chainId}"]`)?.classList.add('is-open');
+        document.querySelector(`.chain-row[data-chain="${chainId}"] .row-arrow`)?.classList.add('open');
+        if (body) {
+          body.style.maxHeight = '900px';
+          setTimeout(() => { rebuildChainChart(chainId, 'mcap'); rebuildChainChart(chainId, 'holders'); }, 50);
+        }
+      }
+    }
+
+    function buildChainTable() {
+      const tbody = document.getElementById('chain-tbody');
+      if (!tbody) return;
+      const mcapSym = currentCurrency === 'USD' ? '$' : '€';
+      const rows = getChainRows().sort((a, b) => b.mcap - a.mcap);
+      // Destroy any open chain charts before rebuilding DOM
+      if (openChain) {
+        ['mcap', 'holders'].forEach(t => {
+          const k = t + 'Chart';
+          if (chainState[openChain][k]) { chainState[openChain][k].destroy(); chainState[openChain][k] = null; }
+        });
+        openChain = null;
+      }
+      tbody.innerHTML = '';
+      rows.forEach((chain, idx) => {
+        const isOpen = openChain === chain.id;
+        const tokenLogosHtml = chain.sgTokens.map(t =>
+          `<img src="${t.logo}" class="chain-logo" title="${t.label}" alt="${t.label}" onerror="this.style.display='none'">`
+        ).join('');
+        // ── Main row ──
+        const tr = document.createElement('tr');
+        tr.className = 'tracker-row chain-row' + (isOpen ? ' is-open' : '');
+        tr.dataset.chain = chain.id;
+        tr.innerHTML = `
+          <td class="td-rank">${idx + 1}</td>
+          <td class="td-name">
+            <img src="${chain.logo}" class="token-logo" alt="${chain.name}" onerror="this.style.display='none'">
+            <span class="td-name-text">${chain.name}</span>
+          </td>
+          <td class="td-ticker cchain-native">${chain.nativeToken}</td>
+          <td class="td-chains cchain-tokens"><div class="chain-logos">${tokenLogosHtml}</div></td>
+          <td class="td-holders th-right">${fmtSpaced(chain.holders)}</td>
+          <td class="td-change th-right cchain-h1d">${fmtChg(chain.holdChg1d, chain.holdChg1dAbs, 'holders').html}</td>
+          <td class="td-change th-right cchain-h7d">${fmtChg(chain.holdChg7d, chain.holdChg7dAbs, 'holders').html}</td>
+          <td class="td-change th-right cchain-h1m">${fmtChg(chain.holdChg1m, chain.holdChg1mAbs, 'holders').html}</td>
+          <td class="td-mcap th-right">${fmtKpiMcap(chain.mcap, mcapSym)}</td>
+          <td class="td-change th-right cchain-mc1d">${fmtChg(chain.mcapChg1d, chain.mcapChg1dAbs, 'mcap').html}</td>
+          <td class="td-change th-right cchain-mc7d">${fmtChg(chain.mcapChg7d, chain.mcapChg7dAbs, 'mcap').html}</td>
+          <td class="td-change th-right cchain-mc1m">${fmtChg(chain.mcapChg1m, chain.mcapChg1mAbs, 'mcap').html}</td>
+          <td class="td-arrow"><span class="row-arrow${isOpen ? ' open' : ''}">›</span></td>
+        `;
+        tr.addEventListener('click', () => toggleChainAccordion(chain.id));
+        tbody.appendChild(tr);
+        // ── Expand row ──
+        const trExp = document.createElement('tr');
+        trExp.className = 'tracker-expand-row';
+        const td = document.createElement('td');
+        td.colSpan = 13;
+        const expandBody = document.createElement('div');
+        expandBody.className = 'expand-body';
+        expandBody.id = `chain-expand-${chain.id}`;
+        expandBody.style.maxHeight = isOpen ? '900px' : '0';
+        const expandInner = document.createElement('div');
+        expandInner.className = 'expand-inner';
+        expandInner.innerHTML = makeChainExpandInner(chain.id);
+        expandBody.appendChild(expandInner);
+        td.appendChild(expandBody);
+        trExp.appendChild(td);
+        tbody.appendChild(trExp);
+      });
+    }
+
+    // ── Change mode toggle (%  vs absolute) ─────────────────────────────────────
+    let currentChangeMode = 'pct';
+    function setChangeMode(mode) {
+      currentChangeMode = mode;
+      document.getElementById('btn-chg-pct').classList.toggle('active', mode === 'pct');
+      document.getElementById('btn-chg-abs').classList.toggle('active', mode === 'abs');
+      refreshTrackerValues();
+      if (currentTrackerView === 'chain') refreshChainValues();
+    }
+
+    // ── Tracker view toggle ─────────────────────────────────────────────────────
+    let currentTrackerView = 'token';
+    function setTrackerView(view) {
+      currentTrackerView = view;
+      document.getElementById('tracker-token-view').style.display = view === 'token' ? '' : 'none';
+      document.getElementById('tracker-chain-view').style.display = view === 'chain' ? '' : 'none';
+      document.getElementById('btn-view-token').classList.toggle('active', view === 'token');
+      document.getElementById('btn-view-chain').classList.toggle('active', view === 'chain');
+      if (view === 'chain') buildChainTable();
     }
 
     function toggleSort(key) {
@@ -1850,10 +2181,11 @@
 
     function makeExpandInner(token) {
       const id = token.id;
+      const currency = currentCurrency;
       return `
         <div class="expand-chart-card">
           <div class="card-header">
-            <h2 id="${id}-mcap-title">Market Capitalisation (${displayCurrency})</h2>
+            <h2 id="${id}-mcap-title">Market Capitalisation (${currency})</h2>
             <div class="toggle-wrap">
               <button class="toggle-btn active" id="${id}-mcap-btn-line" onclick="setView('${id}','mcap','line')" title="Courbe">${SVG_LINE}</button>
               <button class="toggle-btn"        id="${id}-mcap-btn-pie"  onclick="setView('${id}','mcap','pie')"  title="Camembert">${SVG_PIE}</button>
@@ -1890,7 +2222,7 @@
                                          : (va > vb ? -1 : va < vb ? 1 : 0);
       });
 
-      const mcapSym = displayCurrency === 'EUR' ? '€' : displayCurrency === 'GBP' ? '£' : displayCurrency === 'CHF' ? '₣' : '$';
+      const mcapSym = currentCurrency === 'USD' ? '$' : '€';
       const tbody = document.getElementById('tracker-tbody');
       tbody.innerHTML = '';
 
@@ -1913,15 +2245,16 @@
           <td class="td-ticker col-ticker">${token.ticker}</td>
           <td class="td-ticker col-peg">${token.peg ? token.peg.code : '—'}</td>
           <td class="td-ticker col-type">${token.type || '—'}</td>
-          <td class="td-ticker col-issuer">${token.issuer || '—'}</td>
           <td class="td-ticker col-mica">${token.mica || '—'}</td>
           <td class="td-chains col-chains">${chainLogosHtml}</td>
-          <td class="td-ticker col-integration">${token.integration || '—'}</td>
           <td class="td-holders col-holders" title="* Comptage non dédupliqué cross-chaîne">${fmtSpaced(token.holders)}<span class="holders-star">*</span></td>
-          <td class="td-mcap col-mcap">${fmtKpiMcap(convertMcapToDisplay(token.mcap), mcapSym)}</td>
-          <td class="td-change col-1d">${fmtChg(token.chg1d).html}</td>
-          <td class="td-change col-7d">${fmtChg(token.chg7d).html}</td>
-          <td class="td-change col-1m">${fmtChg(token.chg1m).html}</td>
+          <td class="td-change col-h1d">${fmtChg(token.holdChg1d, token.holdChg1dAbs, 'holders').html}</td>
+          <td class="td-change col-h7d">${fmtChg(token.holdChg7d, token.holdChg7dAbs, 'holders').html}</td>
+          <td class="td-change col-h1m">${fmtChg(token.holdChg1m, token.holdChg1mAbs, 'holders').html}</td>
+          <td class="td-mcap col-mcap">${fmtKpiMcap(token.mcap, mcapSym)}</td>
+          <td class="td-change col-1d">${fmtChg(token.chg1d, token.chg1dAbs, 'mcap').html}</td>
+          <td class="td-change col-7d">${fmtChg(token.chg7d, token.chg7dAbs, 'mcap').html}</td>
+          <td class="td-change col-1m">${fmtChg(token.chg1m, token.chg1mAbs, 'mcap').html}</td>
           <td class="td-arrow"><span class="row-arrow${isOpen ? ' open' : ''}">›</span></td>
         `;
         tr.addEventListener('click', () => toggleAccordion(token.id));
@@ -1932,7 +2265,7 @@
         trExp.className = 'tracker-expand-row';
         trExp.dataset.token = token.id;
         const td = document.createElement('td');
-        td.colSpan = 15;
+        td.colSpan = 16;
         const expandBody = document.createElement('div');
         expandBody.className = 'expand-body';
         expandBody.id = 'expand-' + token.id;
@@ -2017,56 +2350,88 @@
       buildTrackerTable();
     }
 
+    // Update only the mcap/change cell values in existing rows — no DOM rebuild
     function refreshTrackerValues() {
       const rows = getTokenRows();
-      const mcapSym = '$';
+      const mcapSym = currentCurrency === 'USD' ? '$' : '€';
       rows.forEach(token => {
         const tr = document.querySelector(`.tracker-row[data-token="${token.id}"]`);
         if (!tr) return;
         tr.querySelector('.td-mcap').innerHTML    = fmtKpiMcap(token.mcap, mcapSym);
-        tr.querySelector('.col-1d').innerHTML     = fmtChg(token.chg1d).html;
-        tr.querySelector('.col-7d').innerHTML     = fmtChg(token.chg7d).html;
-        tr.querySelector('.col-1m').innerHTML     = fmtChg(token.chg1m).html;
+        tr.querySelector('.col-h1d').innerHTML    = fmtChg(token.holdChg1d, token.holdChg1dAbs, 'holders').html;
+        tr.querySelector('.col-h7d').innerHTML    = fmtChg(token.holdChg7d, token.holdChg7dAbs, 'holders').html;
+        tr.querySelector('.col-h1m').innerHTML    = fmtChg(token.holdChg1m, token.holdChg1mAbs, 'holders').html;
+        tr.querySelector('.col-1d').innerHTML     = fmtChg(token.chg1d, token.chg1dAbs, 'mcap').html;
+        tr.querySelector('.col-7d').innerHTML     = fmtChg(token.chg7d, token.chg7dAbs, 'mcap').html;
+        tr.querySelector('.col-1m').innerHTML     = fmtChg(token.chg1m, token.chg1mAbs, 'mcap').html;
       });
       if (openToken) {
         const titleEl = document.getElementById(`${openToken}-mcap-title`);
-        if (titleEl) titleEl.textContent = `Market Capitalisation (${displayCurrency})`;
+        if (titleEl) titleEl.textContent = `Market Capitalisation (${currentCurrency})`;
       }
     }
 
+    // Update chain table cell values without rebuilding the DOM (keeps accordion open)
+    function refreshChainValues() {
+      const rows = getChainRows();
+      const mcapSym = currentCurrency === 'USD' ? '$' : '€';
+      rows.forEach(chain => {
+        const tr = document.querySelector(`.chain-row[data-chain="${chain.id}"]`);
+        if (!tr) return;
+        tr.querySelector('.td-mcap').innerHTML     = fmtKpiMcap(chain.mcap, mcapSym);
+        tr.querySelector('.cchain-h1d').innerHTML  = fmtChg(chain.holdChg1d, chain.holdChg1dAbs, 'holders').html;
+        tr.querySelector('.cchain-h7d').innerHTML  = fmtChg(chain.holdChg7d, chain.holdChg7dAbs, 'holders').html;
+        tr.querySelector('.cchain-h1m').innerHTML  = fmtChg(chain.holdChg1m, chain.holdChg1mAbs, 'holders').html;
+        tr.querySelector('.cchain-mc1d').innerHTML = fmtChg(chain.mcapChg1d, chain.mcapChg1dAbs, 'mcap').html;
+        tr.querySelector('.cchain-mc7d').innerHTML = fmtChg(chain.mcapChg7d, chain.mcapChg7dAbs, 'mcap').html;
+        tr.querySelector('.cchain-mc1m').innerHTML = fmtChg(chain.mcapChg1m, chain.mcapChg1mAbs, 'mcap').html;
+      });
+      if (openChain) {
+        const titleEl = document.getElementById(`${openChain}-chain-mcap-title`);
+        if (titleEl) titleEl.textContent = `Market Capitalisation (${currentCurrency})`;
+      }
+    }
+
+    function setCurrency(currency) {
+      if (currency === currentCurrency) return;
+      currentCurrency = currency;
+      document.getElementById('btn-usd').classList.toggle('active', currency === 'USD');
+      document.getElementById('btn-eur').classList.toggle('active', currency === 'EUR');
+      buildKpiCards();
+      isSmoothing = true;
+      buildGlobalCharts();                              // global line charts: smooth in-place
+      if (openToken) rebuildChart(openToken, 'mcap');   // token accordion mcap: smooth in-place
+      if (openChain) rebuildChainChart(openChain, 'mcap'); // chain accordion mcap: smooth in-place
+      isSmoothing = false;
+      refreshTrackerValues();                           // token table: cell update, no DOM rebuild
+      if (currentTrackerView === 'chain') refreshChainValues(); // chain table: idem
+    }
 
     // ── Init ────────────────────────────────────────────────────────────────────
     async function init() {
-      // Load all data files for every token × chain in parallel (plus fx_rates)
-      const allFiles = TOKEN_DEFS.flatMap(def =>
-        def.chainDefs.flatMap(c => [c.mcapFile, c.holdersFile])
+      const allChains = [...EURCV_CHAINS, ...USDCV_CHAINS];
+      const files = allChains.flatMap(c => [c.mcapFile, c.holdersFile]);
+      const results = await Promise.all(
+        files.map(f => fetch(f).then(r => r.ok ? r.json() : []).catch(() => []))
       );
-      const [fxRates, ...results] = await Promise.all([
-        fetch('data/fx_rates.json').then(r => r.ok ? r.json() : {}).catch(() => ({})),
-        ...allFiles.map(f => fetch(f).then(r => r.ok ? r.json() : []).catch(() => []))
-      ]);
-      fxRatesData = fxRates || {};
 
-      // Distribute results into state — order matches allFiles construction above
-      let idx = 0;
-      TOKEN_DEFS.forEach(def => {
-        const mcapData    = [];
-        const holdersData = [];
-        def.chainDefs.forEach(() => {
-          mcapData.push(results[idx++]);
-          holdersData.push(results[idx++]);
-        });
-        state[def.id].mcapData    = mcapData;
-        state[def.id].holdersData = holdersData;
-      });
+      const eurcvMcapRaw = EURCV_CHAINS.map((_, i) => results[i * 2]);
+      const eurcvHolders = EURCV_CHAINS.map((_, i) => results[i * 2 + 1]);
+      const base = EURCV_CHAINS.length * 2;
+      const usdcvMcapRaw = USDCV_CHAINS.map((_, i) => results[base + i * 2]);
+      const usdcvHolders = USDCV_CHAINS.map((_, i) => results[base + i * 2 + 1]);
+
+      eurusdRates = await loadEurUsdRates();
+
+      state.eurcv.mcapData    = eurcvMcapRaw.map(s => applyEurUsdRates(s, eurusdRates));
+      state.eurcv.holdersData = eurcvHolders;
+      state.usdcv.mcapData    = usdcvMcapRaw.map(s => applyUsdcvRates(s, eurusdRates));
+      state.usdcv.holdersData = usdcvHolders;
 
       // Sync theme buttons with saved preference
       const savedTheme = document.documentElement.getAttribute('data-theme') || 'dark';
       document.getElementById('btn-light').classList.toggle('active', savedTheme === 'light');
-      document.getElementById('btn-dark').classList.toggle('active',  savedTheme === 'dark');
-
-      // Sync currency dropdown
-      document.getElementById('currency-select').value = displayCurrency;
+      document.getElementById('btn-dark').classList.toggle('active', savedTheme === 'dark');
 
       buildKpiCards();
       buildGlobalCharts();
