@@ -805,7 +805,10 @@
   <!-- ── Token Tracker ── -->
   <div class="tracker-section">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem;">
-      <p class="section-title" style="margin-bottom:0">Tokens</p>
+      <div class="toggle-wrap">
+        <button class="toggle-btn active" id="tbl-view-tokens" onclick="setTableView('tokens')">Tokens</button>
+        <button class="toggle-btn" id="tbl-view-chains" onclick="setTableView('chains')">Chaînes</button>
+      </div>
       <div class="toggle-wrap">
         <button class="toggle-btn active" id="tbl-mode-pct" onclick="setTableValMode('pct')" title="Afficher les variations en %">%</button>
         <button class="toggle-btn" id="tbl-mode-abs" onclick="setTableValMode('abs')" title="Afficher les variations en valeur absolue">Nb</button>
@@ -813,26 +816,7 @@
     </div>
     <div class="card" style="padding:0; overflow-x:auto;">
       <table class="tracker-table">
-        <thead>
-          <tr>
-            <th style="width:36px">#</th>
-            <th class="th-sortable th-name" data-sort="name" style="width:190px">Token <span class="sort-icon" id="si-name">↕</span></th>
-            <th class="col-ticker" style="width:72px">Ticker</th>
-            <th class="col-peg" style="width:60px">Peg</th>
-            <th class="col-issuer" style="width:110px">Frais annuels</th>
-            <th class="col-chains" style="width:160px">Chaînes</th>
-            <th class="col-nav" style="width:108px">NAV / token</th>
-            <th class="th-sortable th-right col-holders" data-sort="holders" style="width:100px">Holders <span class="sort-icon" id="si-holders">↕</span></th>
-            <th class="th-sortable th-right col-h1d" data-sort="hchg1d" style="width:60px">1J <span class="sort-icon" id="si-h1d">↕</span></th>
-            <th class="th-sortable th-right col-h7d" data-sort="hchg7d" style="width:60px">7J <span class="sort-icon" id="si-h7d">↕</span></th>
-            <th class="th-sortable th-right col-h1m" data-sort="hchg1m" style="width:60px">1M <span class="sort-icon" id="si-h1m">↕</span></th>
-            <th class="th-sortable th-right col-mcap" data-sort="mcap" style="width:120px">Market Cap <span class="sort-icon" id="si-mcap">↓</span></th>
-            <th class="th-sortable th-right col-1d" data-sort="chg1d" style="width:60px">1J <span class="sort-icon" id="si-1d">↕</span></th>
-            <th class="th-sortable th-right col-7d" data-sort="chg7d" style="width:60px">7J <span class="sort-icon" id="si-7d">↕</span></th>
-            <th class="th-sortable th-right col-1m" data-sort="chg1m" style="width:60px">1M <span class="sort-icon" id="si-1m">↕</span></th>
-            <th style="width:40px"></th>
-          </tr>
-        </thead>
+        <thead id="tracker-thead"></thead>
         <tbody id="tracker-tbody"></tbody>
       </table>
     </div>
@@ -1761,6 +1745,8 @@
     let trackerSort  = { key: 'mcap', dir: 'desc' };
     let openToken    = null;
     let tableValMode = 'pct'; // 'pct' | 'abs'
+    let tableView    = 'tokens'; // 'tokens' | 'chains'
+    let chainSort    = { key: 'mcap', dir: 'desc' };
 
     const CHAIN_LOGOS = {
       'Ethereum':  './img/ethereum.png',
@@ -1770,6 +1756,16 @@
       'Etherlink': './img/etherlink.png',
       'Stellar':   './img/stellar.png',
       'Starknet':  './img/starknet.png',
+    };
+
+    const CHAIN_NATIVE = {
+      'Ethereum':  'ETH',
+      'Polygon':   'POL',
+      'Base':      'ETH',
+      'Arbitrum':  'ETH',
+      'Etherlink': 'XTZ',
+      'Stellar':   'XLM',
+      'Starknet':  'STRK',
     };
 
     const TOKEN_DEFS = [
@@ -2020,7 +2016,181 @@
         </div>`;
     }
 
+    // ── Chain view helpers ─────────────────────────────────────────────────────
+
+    function getChainRows() {
+      return Object.keys(CHAIN_COLORS).map(chainLabel => {
+        // Tokens présents sur cette chaîne avec leurs indices de données
+        const tokenEntries = TOKEN_DEFS.map(def => {
+          const idx = def.chainDefs.findIndex(c => c.label === chainLabel);
+          if (idx < 0) return null;
+          const mcapSeries    = state[def.id].mcapData    ? state[def.id].mcapData[idx]    : null;
+          const holdersSeries = state[def.id].holdersData ? state[def.id].holdersData[idx] : null;
+          return { def, idx, mcapSeries, holdersSeries };
+        }).filter(Boolean);
+
+        // Séries agrégées (somme des tokens) pour la chaîne
+        const mcapSeries    = mergeSeries(tokenEntries.filter(e => e.mcapSeries).map(e => ({ series: e.mcapSeries, key: 'marketcap' })));
+        const holdersSeries = mergeSeries(tokenEntries.filter(e => e.holdersSeries).map(e => ({ series: e.holdersSeries, key: 'holders' })));
+
+        const mcap    = mcapSeries.length    ? (mcapSeries[mcapSeries.length - 1].value || 0)       : 0;
+        const holders = holdersSeries.length ? (holdersSeries[holdersSeries.length - 1].value || 0) : 0;
+
+        // Logos des tokens actifs sur cette chaîne
+        const tokenLogos = tokenEntries
+          .filter(e => e.mcapSeries && getLatestValue(e.mcapSeries, 'marketcap') > 0)
+          .map(e => ({ src: e.def.logo, ticker: e.def.ticker }));
+
+        // Variations mcap
+        let chg1d = null, chg7d = null, chg1m = null, d1d = null, d7d = null, d1m = null;
+        if (mcapSeries.length) {
+          const ld = mcapSeries[mcapSeries.length - 1].date;
+          const v1d = valueAtDate(mcapSeries, isoSubDays(ld, 1));
+          const v7d = valueAtDate(mcapSeries, isoSubDays(ld, 7));
+          const v1m = valueAtDate(mcapSeries, isoSubDays(ld, 30));
+          chg1d = pctChange(mcap, v1d); chg7d = pctChange(mcap, v7d); chg1m = pctChange(mcap, v1m);
+          if (v1d != null) d1d = mcap - v1d;
+          if (v7d != null) d7d = mcap - v7d;
+          if (v1m != null) d1m = mcap - v1m;
+        }
+
+        // Variations holders
+        let hchg1d = null, hchg7d = null, hchg1m = null, hd1d = null, hd7d = null, hd1m = null;
+        if (holdersSeries.length) {
+          const ld = holdersSeries[holdersSeries.length - 1].date;
+          const vh1d = valueAtDate(holdersSeries, isoSubDays(ld, 1));
+          const vh7d = valueAtDate(holdersSeries, isoSubDays(ld, 7));
+          const vh1m = valueAtDate(holdersSeries, isoSubDays(ld, 30));
+          hchg1d = pctChange(holders, vh1d); hchg7d = pctChange(holders, vh7d); hchg1m = pctChange(holders, vh1m);
+          if (vh1d != null) hd1d = holders - vh1d;
+          if (vh7d != null) hd7d = holders - vh7d;
+          if (vh1m != null) hd1m = holders - vh1m;
+        }
+
+        return {
+          label: chainLabel, logo: CHAIN_LOGOS[chainLabel],
+          native: CHAIN_NATIVE[chainLabel] || '—',
+          color: CHAIN_COLORS[chainLabel], tokenLogos,
+          mcap, holders,
+          chg1d, chg7d, chg1m, d1d, d7d, d1m,
+          hchg1d, hchg7d, hchg1m, hd1d, hd7d, hd1m,
+        };
+      });
+    }
+
+    function buildChainTable() {
+      // Thead dynamique vue Chaînes
+      document.getElementById('tracker-thead').innerHTML = `<tr>
+        <th style="width:36px">#</th>
+        <th class="th-sortable th-name" data-sort="name" style="width:180px">Blockchain <span class="sort-icon" id="csi-name">↕</span></th>
+        <th style="width:70px;color:var(--text-mute);font-size:0.62rem;text-transform:uppercase;letter-spacing:.05em;">Natif</th>
+        <th style="width:170px;color:var(--text-mute);font-size:0.62rem;text-transform:uppercase;letter-spacing:.05em;">Tokens</th>
+        <th class="th-sortable th-right" data-sort="holders" style="width:100px">Holders <span class="sort-icon" id="csi-holders">↕</span></th>
+        <th class="th-sortable th-right" data-sort="hchg1d" style="width:60px">1J <span class="sort-icon" id="csi-h1d">↕</span></th>
+        <th class="th-sortable th-right" data-sort="hchg7d" style="width:60px">7J <span class="sort-icon" id="csi-h7d">↕</span></th>
+        <th class="th-sortable th-right" data-sort="hchg1m" style="width:60px">1M <span class="sort-icon" id="csi-h1m">↕</span></th>
+        <th class="th-sortable th-right" data-sort="mcap" style="width:120px">Market Cap <span class="sort-icon" id="csi-mcap">↓</span></th>
+        <th class="th-sortable th-right" data-sort="chg1d" style="width:60px">1J <span class="sort-icon" id="csi-1d">↕</span></th>
+        <th class="th-sortable th-right" data-sort="chg7d" style="width:60px">7J <span class="sort-icon" id="csi-7d">↕</span></th>
+        <th class="th-sortable th-right" data-sort="chg1m" style="width:60px">1M <span class="sort-icon" id="csi-1m">↕</span></th>
+      </tr>`;
+
+      const rows = getChainRows();
+      rows.sort((a, b) => {
+        let va = chainSort.key === 'name' ? a.label.toLowerCase() : a[chainSort.key];
+        let vb = chainSort.key === 'name' ? b.label.toLowerCase() : b[chainSort.key];
+        if (va == null && vb == null) return 0;
+        if (va == null) return 1;
+        if (vb == null) return -1;
+        return chainSort.dir === 'asc' ? (va < vb ? -1 : va > vb ? 1 : 0)
+                                       : (va > vb ? -1 : va < vb ? 1 : 0);
+      });
+
+      const mcapSym = displayCurrency === 'EUR' ? '€' : displayCurrency === 'GBP' ? '£' : displayCurrency === 'CHF' ? '₣' : '$';
+      const tbody = document.getElementById('tracker-tbody');
+      tbody.innerHTML = '';
+
+      rows.forEach((chain, idx) => {
+        const tokenLogosHtml = `<div class="chain-logos" style="justify-content:flex-start;">${
+          chain.tokenLogos.map(t => `<img src="${t.src}" class="chain-logo" title="${t.ticker}" alt="${t.ticker}" onerror="this.style.display='none'">`).join('')
+        }</div>`;
+
+        const tr = document.createElement('tr');
+        tr.className = 'tracker-row';
+        tr.innerHTML = `
+          <td class="td-rank">${idx + 1}</td>
+          <td class="td-name">
+            <img src="${chain.logo}" class="chain-logo" alt="${chain.label}" onerror="this.style.display='none'" style="width:36px;height:36px;flex-shrink:0;">
+            <span class="td-name-text">${chain.label}</span>
+          </td>
+          <td class="td-ticker" style="color:var(--text-sec);font-size:0.8rem;">${chain.native}</td>
+          <td>${tokenLogosHtml}</td>
+          <td class="td-holders">${chain.holders > 0 ? fmtSpaced(chain.holders) : '—'}</td>
+          <td class="td-change">${tableValMode === 'pct' ? fmtChg(chain.hchg1d).html : fmtAbsHolders(chain.hd1d)}</td>
+          <td class="td-change">${tableValMode === 'pct' ? fmtChg(chain.hchg7d).html : fmtAbsHolders(chain.hd7d)}</td>
+          <td class="td-change">${tableValMode === 'pct' ? fmtChg(chain.hchg1m).html : fmtAbsHolders(chain.hd1m)}</td>
+          <td class="td-mcap">${chain.mcap > 0 ? fmtKpiMcap(convertMcapToDisplay(chain.mcap), mcapSym) : '—'}</td>
+          <td class="td-change">${tableValMode === 'pct' ? fmtChg(chain.chg1d).html : fmtAbsMcap(chain.d1d !== null ? convertMcapToDisplay(chain.d1d) : null, mcapSym)}</td>
+          <td class="td-change">${tableValMode === 'pct' ? fmtChg(chain.chg7d).html : fmtAbsMcap(chain.d7d !== null ? convertMcapToDisplay(chain.d7d) : null, mcapSym)}</td>
+          <td class="td-change">${tableValMode === 'pct' ? fmtChg(chain.chg1m).html : fmtAbsMcap(chain.d1m !== null ? convertMcapToDisplay(chain.d1m) : null, mcapSym)}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      // Wire sort clicks
+      document.querySelectorAll('.tracker-table .th-sortable').forEach(th => {
+        th.onclick = () => toggleChainSort(th.dataset.sort);
+      });
+      updateChainSortIcons();
+    }
+
+    function toggleChainSort(key) {
+      if (chainSort.key === key) {
+        chainSort.dir = chainSort.dir === 'desc' ? 'asc' : 'desc';
+      } else {
+        chainSort.key = key;
+        chainSort.dir = key === 'name' ? 'asc' : 'desc';
+      }
+      buildChainTable();
+    }
+
+    function updateChainSortIcons() {
+      const icons = { name: 'csi-name', mcap: 'csi-mcap', holders: 'csi-holders',
+                      chg1d: 'csi-1d', chg7d: 'csi-7d', chg1m: 'csi-1m',
+                      hchg1d: 'csi-h1d', hchg7d: 'csi-h7d', hchg1m: 'csi-h1m' };
+      document.querySelectorAll('.tracker-table .th-sortable').forEach(th => th.classList.remove('sort-active'));
+      Object.entries(icons).forEach(([key, id]) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.closest('th').classList.toggle('sort-active', chainSort.key === key);
+        el.textContent = chainSort.key !== key ? '↕' : (chainSort.dir === 'desc' ? '↓' : '↑');
+      });
+    }
+
+    function setTableView(view) {
+      tableView = view;
+      document.getElementById('tbl-view-tokens').classList.toggle('active', view === 'tokens');
+      document.getElementById('tbl-view-chains').classList.toggle('active', view === 'chains');
+      buildTrackerTable();
+    }
+
     function buildTrackerTable() {
+      if (tableView === 'chains') {
+        // Fermer l'accordéon si ouvert
+        if (openToken && state[openToken]) {
+          ['mcap', 'holders'].forEach(type => {
+            const key = type + 'Chart';
+            if (state[openToken][key]) { state[openToken][key].destroy(); state[openToken][key] = null; }
+          });
+          openToken = null;
+        }
+        buildChainTable();
+        return;
+      }
+      buildTokenTable();
+    }
+
+    function buildTokenTable() {
       // Destroy open charts since we're rebuilding DOM
       if (openToken && state[openToken]) {
         ['mcap', 'holders'].forEach(type => {
@@ -2028,6 +2198,26 @@
           if (state[openToken][key]) { state[openToken][key].destroy(); state[openToken][key] = null; }
         });
       }
+
+      // Thead dynamique vue Tokens
+      document.getElementById('tracker-thead').innerHTML = `<tr>
+        <th style="width:36px">#</th>
+        <th class="th-sortable th-name" data-sort="name" style="width:190px">Token <span class="sort-icon" id="si-name">↕</span></th>
+        <th class="col-ticker" style="width:72px">Ticker</th>
+        <th class="col-peg" style="width:60px">Peg</th>
+        <th class="col-issuer" style="width:110px">Frais annuels</th>
+        <th class="col-chains" style="width:160px">Chaînes</th>
+        <th class="col-nav" style="width:108px">NAV / token</th>
+        <th class="th-sortable th-right col-holders" data-sort="holders" style="width:100px">Holders <span class="sort-icon" id="si-holders">↕</span></th>
+        <th class="th-sortable th-right col-h1d" data-sort="hchg1d" style="width:60px">1J <span class="sort-icon" id="si-h1d">↕</span></th>
+        <th class="th-sortable th-right col-h7d" data-sort="hchg7d" style="width:60px">7J <span class="sort-icon" id="si-h7d">↕</span></th>
+        <th class="th-sortable th-right col-h1m" data-sort="hchg1m" style="width:60px">1M <span class="sort-icon" id="si-h1m">↕</span></th>
+        <th class="th-sortable th-right col-mcap" data-sort="mcap" style="width:120px">Market Cap <span class="sort-icon" id="si-mcap">↓</span></th>
+        <th class="th-sortable th-right col-1d" data-sort="chg1d" style="width:60px">1J <span class="sort-icon" id="si-1d">↕</span></th>
+        <th class="th-sortable th-right col-7d" data-sort="chg7d" style="width:60px">7J <span class="sort-icon" id="si-7d">↕</span></th>
+        <th class="th-sortable th-right col-1m" data-sort="chg1m" style="width:60px">1M <span class="sort-icon" id="si-1m">↕</span></th>
+        <th style="width:40px"></th>
+      </tr>`;
 
       const rows = getTokenRows();
       rows.sort((a, b) => {
