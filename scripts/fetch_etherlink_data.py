@@ -1,6 +1,6 @@
 """
 Fetch supply & holder history for Spiko tokens on Etherlink (tezos L2).
-Uses the Etherlink Blockscout explorer API (Etherscan-compatible, no API key).
+Uses the Blockscout v2 REST API (cursor-based pagination, no cap issues).
 
 Tokens on Etherlink: EUTBL, USTBL, UKTBL, SAFO, EURSAFO, GBPSAFO, CHFSAFO
 SPKCC and EURSPKCC are NOT deployed on Etherlink.
@@ -15,20 +15,19 @@ import time
 from collections import defaultdict
 from datetime import datetime, timezone
 
-BLOCKSCOUT_URL = "https://explorer.etherlink.com/api"
-CHAIN_NAME     = "etherlink"
-TRANSFER_TOPIC = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
-ZERO_ADDRESS   = "0x0000000000000000000000000000000000000000"
+BLOCKSCOUT_V2   = "https://explorer.etherlink.com/api/v2"
+CHAIN_NAME      = "etherlink"
+ZERO_ADDRESS    = "0x0000000000000000000000000000000000000000"
 LOOKBACK_BLOCKS = 5000
 
 TOKENS = {
     'eutbl':   ('0xa0769f7a8fc65e47de93797b4e21c073c117fc80', 'EUR'),
     'ustbl':   ('0xe4880249745eac5f1ed9d8f7df844792d560e750', 'USD'),
     'uktbl':   ('0x970e2adc2fdf53aea6b5fa73ca6dc30eafedfe3d', 'GBP'),
-    'safo':    ('0x0bb754d8940e283d9ff6855ab5dafbc14165c059', 'USD'),
-    'eursafo': ('0xd879846cbe20751bde8a9342a3cca00a3e56ca47', 'EUR'),
-    'gbpsafo': ('0x2f6c0e5e06b43512706a9cdf66cd21f723fe0ec3', 'GBP'),
-    'chfsafo': ('0xd9aa2300e126869182dfb6ecf54984e4c687f36b', 'CHF'),
+    'safo':    ('0x5677a4dc7484762ffCCEe13cbA20b5c979DeF446', 'USD'),
+    'eursafo': ('0x35DFEC1813C43d82E6B87c682F560bbB8EA0C121', 'EUR'),
+    'gbpsafo': ('0xFE20eBe3881491b2e158b9D10cB95bcFa652262D', 'GBP'),
+    'chfsafo': ('0xEf53E7D17822B641C6481837238A64A688709301', 'CHF'),
 }
 
 
@@ -44,91 +43,128 @@ def save_json(path, data):
     with open(path, 'w') as f:
         json.dump(data, f)
 
+def fill_daily_gaps(series, value_key):
+    """Forward-fill missing dates so there are no gaps in daily series."""
+    if not series:
+        return series
+    from datetime import timedelta
+    result = []
+    by_date = {pt['date']: pt for pt in series}
+    d = datetime.strptime(series[0]['date'], '%Y-%m-%d').date()
+    end = datetime.strptime(series[-1]['date'], '%Y-%m-%d').date()
+    last_val = None
+    while d <= end:
+        ds = d.strftime('%Y-%m-%d')
+        if ds in by_date:
+            result.append(by_date[ds])
+            last_val = by_date[ds][value_key]
+        elif last_val is not None:
+            result.append({'date': ds, value_key: last_val})
+        d += timedelta(days=1)
+    return result
 
-# ── Blockscout API helpers ─────────────────────────────────────────────────────
 
-def blockscout_get(params):
-    resp = requests.get(BLOCKSCOUT_URL, params=params, timeout=30)
-    resp.raise_for_status()
-    return resp.json()
+# ── Blockscout v2 helpers ──────────────────────────────────────────────────────
 
 def get_token_decimals(token_address):
-    # Blockscout v2 REST API — proxy/eth_call not supported on Blockscout
-    v2_url = BLOCKSCOUT_URL.rstrip('/api').rstrip('/') + f'/api/v2/tokens/{token_address}'
-    resp = requests.get(v2_url, timeout=30)
+    resp = requests.get(f"{BLOCKSCOUT_V2}/tokens/{token_address}", timeout=30)
     if resp.ok:
         dec = resp.json().get('decimals')
         return int(dec) if dec is not None else 18
     return 18
 
 
-# ── Log fetching ───────────────────────────────────────────────────────────────
+# ── Transfer fetching (v2 cursor pagination) ───────────────────────────────────
 
-def fetch_transfer_logs(token_address, from_block):
-    all_logs = []
-    seen     = set()
-    current_from = from_block
+def fetch_transfers_v2(token_address, from_block=0):
+    """
+    Fetch all ERC-20 Transfer events via Blockscout v2 REST API.
+    Uses cursor-based pagination (block_number + index) — no 100-result cap issues.
+    Returns list of normalised transfer dicts sorted ascending by (block_number, log_index).
+    If from_block > 0, only transfers with block_number > from_block are returned.
+    """
+    url = f"{BLOCKSCOUT_V2}/tokens/{token_address}/transfers"
+    all_items = []
+    params    = {}
+    page      = 0
 
     while True:
-        page = 1
-        last_block_in_batch = None
+        resp = requests.get(url, params=params, timeout=30)
+        resp.raise_for_status()
+        data  = resp.json()
+        items = data.get('items', [])
 
-        while True:
-            data = blockscout_get({
-                'module': 'logs', 'action': 'getLogs',
-                'address': token_address, 'topic0': TRANSFER_TOPIC,
-                'fromBlock': current_from, 'toBlock': 'latest',
-                'page': page, 'offset': 1000,
-            })
-            if data['status'] != '1' or not data['result']:
-                return all_logs
+        if not items:
+            break
 
-            logs = data['result']
-            new  = 0
-            for log in logs:
-                key = (log['transactionHash'], log['logIndex'])
-                if key not in seen:
-                    seen.add(key)
-                    all_logs.append(log)
-                    new += 1
+        page += 1
+        stop = False
 
-            last_block_in_batch = int(logs[-1]['blockNumber'], 16)
-            print(f"    Page {page} (from {current_from}): {new} new events (total: {len(all_logs)})")
-
-            if len(logs) < 1000:
-                return all_logs
-
-            page += 1
-            time.sleep(0.25)
-
-            if page > 10:
-                current_from = last_block_in_batch
+        for item in items:
+            bn = item.get('block_number', 0)
+            if bn <= from_block:
+                # Items are newest-first; once we pass from_block we're done
+                stop = True
                 break
+            from_obj  = item.get('from')  or {}
+            to_obj    = item.get('to')    or {}
+            total_obj = item.get('total') or {}
+            all_items.append({
+                'block_number': bn,
+                'log_index':    item.get('log_index', 0),
+                'from_addr':    from_obj.get('hash', '').lower(),
+                'to_addr':      to_obj.get('hash', '').lower(),
+                'amount':       int(total_obj.get('value', '0') or '0'),
+                'timestamp':    item.get('timestamp', ''),
+            })
 
-    return all_logs
+        last_bn = items[-1].get('block_number', 0) if items else 0
+        print(f"    page {page}: {len(items)} items (last block {last_bn}, kept {len(all_items)} total)")
+
+        if stop:
+            break
+
+        next_page = data.get('next_page_params')
+        if not next_page:
+            break
+
+        params = next_page
+        time.sleep(0.25)
+
+    # Return in chronological order
+    all_items.sort(key=lambda x: (x['block_number'], x['log_index']))
+    return all_items
 
 
 # ── Supply & holders reconstruction ───────────────────────────────────────────
 
-def build_daily_snapshots(logs, balances, decimals):
+def build_daily_snapshots(transfers, balances, decimals):
+    """Replay Transfer events to build daily supply & holder-count series."""
     events_by_date = defaultdict(list)
-    for log in logs:
-        ts   = int(log['timeStamp'], 16)
-        date = datetime.fromtimestamp(ts, tz=timezone.utc).strftime('%Y-%m-%d')
-        events_by_date[date].append(log)
+
+    for t in transfers:
+        ts_str = t.get('timestamp', '')
+        try:
+            date = ts_str[:10]   # 'YYYY-MM-DD' prefix of ISO timestamp
+            datetime.strptime(date, '%Y-%m-%d')  # validate
+        except Exception:
+            continue
+        events_by_date[date].append(t)
 
     supply_history  = []
     holders_history = []
 
     for date in sorted(events_by_date.keys()):
-        for log in events_by_date[date]:
-            from_addr = '0x' + log['topics'][1][-40:]
-            to_addr   = '0x' + log['topics'][2][-40:]
-            amount    = int(log['data'], 16)
-            if from_addr.lower() != ZERO_ADDRESS:
-                balances[from_addr.lower()] = balances.get(from_addr.lower(), 0) - amount
-            if to_addr.lower() != ZERO_ADDRESS:
-                balances[to_addr.lower()] = balances.get(to_addr.lower(), 0) + amount
+        day_events = sorted(events_by_date[date],
+                            key=lambda x: (x['block_number'], x['log_index']))
+        for t in day_events:
+            fa = t['from_addr']
+            ta = t['to_addr']
+            amt = t['amount']
+            if fa and fa != ZERO_ADDRESS:
+                balances[fa] = balances.get(fa, 0) - amt
+            if ta and ta != ZERO_ADDRESS:
+                balances[ta] = balances.get(ta, 0) + amt
 
         supply  = sum(v for v in balances.values() if v > 0) / (10 ** decimals)
         holders = sum(1 for v in balances.values() if v > 0)
@@ -140,31 +176,31 @@ def build_daily_snapshots(logs, balances, decimals):
 
 # ── FX rates & marketcap ───────────────────────────────────────────────────────
 
-def compute_marketcap(supply_history, currency, fx_rates):
-    if currency == 'USD':
-        return [
-            {'date': item['date'], 'marketcap': round(item['supply'], 2), 'supply': round(item['supply'], 2)}
-            for item in supply_history
-        ]
+def compute_marketcap(supply_history, currency, fx_rates, nav_lookup=None):
     result    = []
     last_rate = None
+    last_nav  = None
     for item in supply_history:
-        date = item['date']
-        if date in fx_rates:
-            last_rate = fx_rates[date]
-        if last_rate is None:
-            continue
-        result.append({
-            'date':      date,
-            'marketcap': round(item['supply'] * last_rate, 2),
-            'supply':    round(item['supply'], 2),
-        })
+        date   = item['date']
+        supply = item['supply']
+        if nav_lookup and date in nav_lookup:
+            last_nav = nav_lookup[date]
+        nav = last_nav if last_nav is not None else 1.0
+
+        if currency == 'USD':
+            result.append({'date': date, 'marketcap': round(supply * nav, 2), 'supply': round(supply, 2)})
+        else:
+            if date in fx_rates:
+                last_rate = fx_rates[date]
+            if last_rate is None:
+                continue
+            result.append({'date': date, 'marketcap': round(supply * nav * last_rate, 2), 'supply': round(supply, 2)})
     return result
 
 
 # ── Per-token processing ───────────────────────────────────────────────────────
 
-def process_token(token_id, token_address, currency, fx_rates_all):
+def process_token(token_id, token_address, currency, fx_rates_all, nav_lookup=None):
     print(f'\n[{token_id.upper()} on ETHERLINK — {token_address[:10]}…]')
 
     state_file   = f'data/{token_id}_{CHAIN_NAME}_state.json'
@@ -182,47 +218,57 @@ def process_token(token_id, token_address, currency, fx_rates_all):
         last_block = int(state['last_block'])
         balances   = {k: int(v) for k, v in state.get('balances', {}).items()}
         from_block = max(0, last_block - LOOKBACK_BLOCKS)
-        print(f'  Incremental from block {from_block} (last known: {last_block})')
+        print(f'  Incremental: fetching transfers after block {from_block} (last known: {last_block})')
 
-        fetched_logs   = fetch_transfer_logs(token_address, from_block)
-        overlap_logs   = [l for l in fetched_logs if int(l['blockNumber'], 16) <= last_block]
-        truly_new_logs = [l for l in fetched_logs if int(l['blockNumber'], 16) >  last_block]
-        print(f'  {len(overlap_logs)} overlap, {len(truly_new_logs)} truly new')
+        new_transfers = fetch_transfers_v2(token_address, from_block=from_block)
+        truly_new = [t for t in new_transfers if t['block_number'] > last_block]
+        print(f'  {len(new_transfers) - len(truly_new)} overlap, {len(truly_new)} truly new')
 
-        if not truly_new_logs:
-            print('  No new logs — skipping.')
-            return
+        if not truly_new:
+            print('  No new transfers — carrying forward today.')
+            merged_raw  = [{'date': pt['date'], 'supply': pt['supply']} for pt in existing_mcap]
+            merged_hold = list(existing_holders)
+            new_last_block = last_block
+        else:
+            first_new_date = truly_new[0]['timestamp'][:10]
 
-        first_new_ts   = int(truly_new_logs[0]['timeStamp'], 16)
-        first_new_date = datetime.fromtimestamp(first_new_ts, tz=timezone.utc).strftime('%Y-%m-%d')
+            new_supply, new_holders = build_daily_snapshots(truly_new, balances, decimals)
 
-        new_supply, new_holders = build_daily_snapshots(truly_new_logs, balances, decimals)
-
-        kept_mcap    = [pt for pt in existing_mcap    if pt['date'] < first_new_date]
-        kept_holders = [pt for pt in existing_holders if pt['date'] < first_new_date]
-        merged_raw   = [{'date': pt['date'], 'supply': pt['supply']} for pt in kept_mcap] + new_supply
-        merged_hold  = kept_holders + new_holders
-        new_last_block = max(int(l['blockNumber'], 16) for l in fetched_logs)
+            kept_mcap    = [pt for pt in existing_mcap    if pt['date'] < first_new_date]
+            kept_holders = [pt for pt in existing_holders if pt['date'] < first_new_date]
+            merged_raw   = [{'date': pt['date'], 'supply': pt['supply']} for pt in kept_mcap] + new_supply
+            merged_hold  = kept_holders + new_holders
+            new_last_block = max(t['block_number'] for t in new_transfers)
 
     else:
-        print('  Full fetch from genesis...')
-        balances     = {}
-        fetched_logs = fetch_transfer_logs(token_address, 0)
-        print(f'  Total: {len(fetched_logs)} Transfer events')
+        print('  Full fetch from genesis…')
+        balances      = {}
+        all_transfers = fetch_transfers_v2(token_address, from_block=0)
+        print(f'  Total: {len(all_transfers)} Transfer events')
 
-        if not fetched_logs:
+        if not all_transfers:
             print('  No events found — token may not be active on Etherlink yet.')
             return
 
-        merged_raw, merged_hold = build_daily_snapshots(fetched_logs, balances, decimals)
-        new_last_block = max(int(l['blockNumber'], 16) for l in fetched_logs)
+        merged_raw, merged_hold = build_daily_snapshots(all_transfers, balances, decimals)
+        new_last_block = max(t['block_number'] for t in all_transfers)
 
     if not merged_raw:
         print('  No supply data.')
         return
 
-    fx_rates = fx_rates_all.get(currency, {}) if currency != 'USD' else {}
-    mcap_history = compute_marketcap(merged_raw, currency, fx_rates)
+    today = datetime.now(timezone.utc).strftime('%Y-%m-%d')
+    if merged_raw[-1]['date'] < today:
+        current_supply  = sum(v for v in balances.values() if v > 0) / (10 ** decimals)
+        current_holders = sum(1 for v in balances.values() if v > 0)
+        merged_raw.append({'date': today, 'supply': round(current_supply, 7)})
+        merged_hold.append({'date': today, 'holders': current_holders})
+
+    merged_raw  = fill_daily_gaps(merged_raw,  'supply')
+    merged_hold = fill_daily_gaps(merged_hold, 'holders')
+
+    fx_rates     = fx_rates_all.get(currency, {}) if currency != 'USD' else {}
+    mcap_history = compute_marketcap(merged_raw, currency, fx_rates, nav_lookup=nav_lookup)
 
     save_json(state_file, {
         'last_block': new_last_block,
@@ -239,11 +285,17 @@ def main():
     os.makedirs('data', exist_ok=True)
     print('=== Fetching Spiko Etherlink data ===')
 
-    fx_rates_all = load_json('data/fx_rates.json', default={})
+    fx_rates_all    = load_json('data/fx_rates.json',    default={})
+    nav_history_all = load_json('data/nav_history.json', default={})
+
+    def build_nav_lookup(tid):
+        s = nav_history_all.get(tid)
+        return {e['date']: e['nav'] for e in s} if s else None
 
     for token_id, (token_address, currency) in TOKENS.items():
         try:
-            process_token(token_id, token_address, currency, fx_rates_all)
+            process_token(token_id, token_address, currency, fx_rates_all,
+                          nav_lookup=build_nav_lookup(token_id))
         except Exception as e:
             print(f'  ERROR for {token_id}: {e}')
         time.sleep(0.5)
