@@ -1747,6 +1747,8 @@
     let tableValMode = 'pct'; // 'pct' | 'abs'
     let tableView    = 'tokens'; // 'tokens' | 'chains'
     let chainSort    = { key: 'mcap', dir: 'desc' };
+    let openChain    = null;
+    const chainChartState = {}; // keyed by chainLabel: { mcapChart, holdersChart, mcapMode, holdersMode }
 
     const CHAIN_LOGOS = {
       'Ethereum':  './img/ethereum.png',
@@ -2016,6 +2018,128 @@
         </div>`;
     }
 
+    // ── Chain accordion ────────────────────────────────────────────────────────
+
+    function makeChainExpandInner(chainLabel) {
+      const cid = chainLabel.toLowerCase();
+      return `
+        <div class="expand-chart-card">
+          <div class="card-header">
+            <h2>Market Capitalisation (${displayCurrency}) — ${chainLabel}</h2>
+            <div class="toggle-wrap">
+              <button class="toggle-btn active" id="chain-${cid}-mcap-btn-line" onclick="setChainView('${chainLabel}','mcap','line')" title="Courbe">${SVG_LINE}</button>
+              <button class="toggle-btn"        id="chain-${cid}-mcap-btn-pie"  onclick="setChainView('${chainLabel}','mcap','pie')"  title="Camembert">${SVG_PIE}</button>
+            </div>
+          </div>
+          <div class="chart-wrap"><canvas id="chart-chain-${cid}-mcap"></canvas></div>
+        </div>
+        <div class="expand-chart-card">
+          <div class="card-header">
+            <h2>Nombre de Holders — ${chainLabel}</h2>
+            <div class="toggle-wrap">
+              <button class="toggle-btn active" id="chain-${cid}-holders-btn-line" onclick="setChainView('${chainLabel}','holders','line')" title="Courbe">${SVG_LINE}</button>
+              <button class="toggle-btn"        id="chain-${cid}-holders-btn-pie"  onclick="setChainView('${chainLabel}','holders','pie')"  title="Camembert">${SVG_PIE}</button>
+            </div>
+          </div>
+          <div class="chart-wrap"><canvas id="chart-chain-${cid}-holders"></canvas></div>
+        </div>`;
+    }
+
+    function rebuildChainChart(chainLabel, type, row) {
+      if (!chainChartState[chainLabel]) {
+        chainChartState[chainLabel] = { mcapChart: null, holdersChart: null, mcapMode: 'line', holdersMode: 'line' };
+      }
+      const s   = chainChartState[chainLabel];
+      const cid = chainLabel.toLowerCase();
+
+      // Tokens on this chain as pseudo-chains for buildStacked
+      const entries     = row ? row.tokenEntries : [];
+      const pseudoChains = entries.map(e => ({ label: e.def.ticker, color: e.def.color }));
+      const mcapData    = entries.map(e => e.mcapSeries    || []);
+      const holdersData = entries.map(e => e.holdersSeries || []);
+
+      if (type === 'mcap') {
+        if (s.mcapChart) { s.mcapChart.destroy(); s.mcapChart = null; }
+        const canvasId = `chart-chain-${cid}-mcap`;
+        const wrap = document.getElementById(canvasId)?.parentElement;
+        if (!wrap) return;
+        wrap.innerHTML = `<canvas id="${canvasId}"></canvas>`;
+        if (s.mcapMode === 'line') {
+          s.mcapChart = buildLineChart(canvasId, buildStacked(pseudoChains, mcapData, 'marketcap', getMcapTransformFn()), fmtMcapVal, fmtAxisMcap, fxRatesData['EUR']);
+        } else {
+          s.mcapChart = buildPieChart(canvasId, mcapData, pseudoChains, 'marketcap', fmtMcapVal, getMcapTransformFn(), fmtMcapPie);
+        }
+      } else {
+        if (s.holdersChart) { s.holdersChart.destroy(); s.holdersChart = null; }
+        const canvasId = `chart-chain-${cid}-holders`;
+        const wrap = document.getElementById(canvasId)?.parentElement;
+        if (!wrap) return;
+        wrap.innerHTML = `<canvas id="${canvasId}"></canvas>`;
+        const fmtVal  = v => fmtSpaced(v) + ' holders';
+        const fmtAxis = v => fmtSpaced(v);
+        if (s.holdersMode === 'line') {
+          s.holdersChart = buildLineChart(canvasId, buildStacked(pseudoChains, holdersData, 'holders', null), fmtVal, fmtAxis);
+        } else {
+          s.holdersChart = buildPieChart(canvasId, holdersData, pseudoChains, 'holders', fmtVal);
+        }
+      }
+    }
+
+    function setChainView(chainLabel, type, mode) {
+      if (!chainChartState[chainLabel]) return;
+      const s   = chainChartState[chainLabel];
+      const key = type === 'mcap' ? 'mcapMode' : 'holdersMode';
+      if (s[key] === mode) return;
+      s[key] = mode;
+      const cid = chainLabel.toLowerCase();
+      const lineBtn = document.getElementById(`chain-${cid}-${type}-btn-line`);
+      const pieBtn  = document.getElementById(`chain-${cid}-${type}-btn-pie`);
+      if (lineBtn) lineBtn.classList.toggle('active', mode === 'line');
+      if (pieBtn)  pieBtn.classList.toggle('active',  mode === 'pie');
+      // Find the cached row to pass tokenEntries
+      const cachedRow = _chainRowsCache[chainLabel];
+      rebuildChainChart(chainLabel, type, cachedRow);
+    }
+
+    let _chainRowsCache = {}; // cache the last getChainRows() result for setChainView
+
+    function toggleChainAccordion(chainLabel, row) {
+      const wasOpen = openChain === chainLabel;
+
+      if (openChain) {
+        const body = document.getElementById('expand-chain-' + openChain.toLowerCase());
+        if (body) body.style.maxHeight = '0';
+        const s = chainChartState[openChain];
+        if (s) {
+          if (s.mcapChart)    { s.mcapChart.destroy();    s.mcapChart    = null; }
+          if (s.holdersChart) { s.holdersChart.destroy(); s.holdersChart = null; }
+        }
+        const prevRow = document.querySelector(`.tracker-row[data-chain="${openChain}"]`);
+        if (prevRow) {
+          prevRow.classList.remove('is-open');
+          const arrow = prevRow.querySelector('.row-arrow');
+          if (arrow) arrow.classList.remove('open');
+        }
+        openChain = null;
+      }
+
+      if (!wasOpen) {
+        openChain = chainLabel;
+        const body = document.getElementById('expand-chain-' + chainLabel.toLowerCase());
+        if (body) body.style.maxHeight = '900px';
+        const currRow = document.querySelector(`.tracker-row[data-chain="${chainLabel}"]`);
+        if (currRow) {
+          currRow.classList.add('is-open');
+          const arrow = currRow.querySelector('.row-arrow');
+          if (arrow) arrow.classList.add('open');
+        }
+        setTimeout(() => {
+          rebuildChainChart(chainLabel, 'mcap',    row);
+          rebuildChainChart(chainLabel, 'holders', row);
+        }, 20);
+      }
+    }
+
     // ── Chain view helpers ─────────────────────────────────────────────────────
 
     function getChainRows() {
@@ -2069,7 +2193,7 @@
         return {
           label: chainLabel, logo: CHAIN_LOGOS[chainLabel],
           native: CHAIN_NATIVE[chainLabel] || '—',
-          color: CHAIN_COLORS[chainLabel], tokenLogos,
+          color: CHAIN_COLORS[chainLabel], tokenLogos, tokenEntries,
           mcap, holders,
           chg1d, chg7d, chg1m, d1d, d7d, d1m,
           hchg1d, hchg7d, hchg1m, hd1d, hd7d, hd1m,
@@ -2078,7 +2202,7 @@
     }
 
     function buildChainTable() {
-      // Thead dynamique vue Chaînes
+      // Thead dynamique vue Chaînes (13 colonnes)
       document.getElementById('tracker-thead').innerHTML = `<tr>
         <th style="width:36px">#</th>
         <th class="th-sortable th-name" data-sort="name" style="width:180px">Blockchain <span class="sort-icon" id="csi-name">↕</span></th>
@@ -2092,9 +2216,14 @@
         <th class="th-sortable th-right" data-sort="chg1d" style="width:60px">1J <span class="sort-icon" id="csi-1d">↕</span></th>
         <th class="th-sortable th-right" data-sort="chg7d" style="width:60px">7J <span class="sort-icon" id="csi-7d">↕</span></th>
         <th class="th-sortable th-right" data-sort="chg1m" style="width:60px">1M <span class="sort-icon" id="csi-1m">↕</span></th>
+        <th style="width:40px"></th>
       </tr>`;
 
       const rows = getChainRows();
+      // Cache pour setChainView (qui n'a pas accès aux rows après coup)
+      _chainRowsCache = {};
+      rows.forEach(r => { _chainRowsCache[r.label] = r; });
+
       rows.sort((a, b) => {
         let va = chainSort.key === 'name' ? a.label.toLowerCase() : a[chainSort.key];
         let vb = chainSort.key === 'name' ? b.label.toLowerCase() : b[chainSort.key];
@@ -2110,12 +2239,15 @@
       tbody.innerHTML = '';
 
       rows.forEach((chain, idx) => {
+        const isOpen = openChain === chain.label;
         const tokenLogosHtml = `<div class="chain-logos">${
           chain.tokenLogos.map(t => `<img src="${t.src}" class="chain-logo" title="${t.ticker}" alt="${t.ticker}" onerror="this.style.display='none'">`).join('')
         }</div>`;
 
+        // ── Ligne principale ──
         const tr = document.createElement('tr');
-        tr.className = 'tracker-row';
+        tr.className = 'tracker-row' + (isOpen ? ' is-open' : '');
+        tr.dataset.chain = chain.label;
         tr.innerHTML = `
           <td class="td-rank">${idx + 1}</td>
           <td class="td-name">
@@ -2132,8 +2264,27 @@
           <td class="td-change">${tableValMode === 'pct' ? fmtChg(chain.chg1d).html : fmtAbsMcap(chain.d1d !== null ? convertMcapToDisplay(chain.d1d) : null, mcapSym)}</td>
           <td class="td-change">${tableValMode === 'pct' ? fmtChg(chain.chg7d).html : fmtAbsMcap(chain.d7d !== null ? convertMcapToDisplay(chain.d7d) : null, mcapSym)}</td>
           <td class="td-change">${tableValMode === 'pct' ? fmtChg(chain.chg1m).html : fmtAbsMcap(chain.d1m !== null ? convertMcapToDisplay(chain.d1m) : null, mcapSym)}</td>
+          <td class="td-arrow"><span class="row-arrow${isOpen ? ' open' : ''}">›</span></td>
         `;
+        tr.addEventListener('click', () => toggleChainAccordion(chain.label, chain));
         tbody.appendChild(tr);
+
+        // ── Ligne accordéon ──
+        const trExp = document.createElement('tr');
+        trExp.className = 'tracker-expand-row';
+        const td = document.createElement('td');
+        td.colSpan = 13;
+        const expandBody = document.createElement('div');
+        expandBody.className = 'expand-body';
+        expandBody.id = 'expand-chain-' + chain.label.toLowerCase();
+        expandBody.style.maxHeight = isOpen ? '900px' : '0';
+        const expandInner = document.createElement('div');
+        expandInner.className = 'expand-inner';
+        expandInner.innerHTML = makeChainExpandInner(chain.label);
+        expandBody.appendChild(expandInner);
+        td.appendChild(expandBody);
+        trExp.appendChild(td);
+        tbody.appendChild(trExp);
       });
 
       // Wire sort clicks
@@ -2141,6 +2292,15 @@
         th.onclick = () => toggleChainSort(th.dataset.sort);
       });
       updateChainSortIcons();
+
+      // Si un accordéon était ouvert, reconstruire ses charts
+      if (openChain) {
+        const row = _chainRowsCache[openChain];
+        setTimeout(() => {
+          rebuildChainChart(openChain, 'mcap',    row);
+          rebuildChainChart(openChain, 'holders', row);
+        }, 20);
+      }
     }
 
     function toggleChainSort(key) {
@@ -2175,7 +2335,7 @@
 
     function buildTrackerTable() {
       if (tableView === 'chains') {
-        // Fermer l'accordéon si ouvert
+        // Fermer l'accordéon token si ouvert
         if (openToken && state[openToken]) {
           ['mcap', 'holders'].forEach(type => {
             const key = type + 'Chart';
@@ -2185,6 +2345,13 @@
         }
         buildChainTable();
         return;
+      }
+      // Fermer l'accordéon chaîne si ouvert
+      if (openChain && chainChartState[openChain]) {
+        const s = chainChartState[openChain];
+        if (s.mcapChart)    { s.mcapChart.destroy();    s.mcapChart    = null; }
+        if (s.holdersChart) { s.holdersChart.destroy(); s.holdersChart = null; }
+        openChain = null;
       }
       buildTokenTable();
     }
