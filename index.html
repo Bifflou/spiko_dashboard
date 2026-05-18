@@ -924,6 +924,13 @@
       return r ? usdVal / r : usdVal;
     }
 
+    // Convert a USD value to display currency using the FX rate at a specific historical date
+    function convertUsdAtDate(usdVal, isoDate) {
+      if (displayCurrency === 'USD') return usdVal;
+      const r = getLastFxRate(displayCurrency, isoDate);
+      return r ? usdVal / r : usdVal;
+    }
+
     function fmtMcapVal(v) {
       if (displayCurrency === 'EUR') return fmtEUR(v);
       if (displayCurrency === 'GBP') return fmtGBP(v);
@@ -1643,7 +1650,7 @@
           // Market cap
           const mcapCell = tr.querySelector('.td-mcap');
           if (mcapCell) mcapCell.innerHTML = fmtKpiMcap(convertMcapToDisplay(token.mcap), mcapSym);
-          // Variations absolues mcap (mode Nb uniquement)
+          // Variations mcap (Nb = abs en devise, % = recalculé en devise courante)
           if (tableValMode === 'abs') {
             const c1d = tr.querySelector('.col-1d');
             const c7d = tr.querySelector('.col-7d');
@@ -1651,6 +1658,13 @@
             if (c1d) c1d.innerHTML = fmtAbsMcap(token.d1d !== null ? convertMcapToDisplay(token.d1d) : null, mcapSym);
             if (c7d) c7d.innerHTML = fmtAbsMcap(token.d7d !== null ? convertMcapToDisplay(token.d7d) : null, mcapSym);
             if (c1m) c1m.innerHTML = fmtAbsMcap(token.d1m !== null ? convertMcapToDisplay(token.d1m) : null, mcapSym);
+          } else {
+            const c1d = tr.querySelector('.col-1d');
+            const c7d = tr.querySelector('.col-7d');
+            const c1m = tr.querySelector('.col-1m');
+            if (c1d) c1d.innerHTML = fmtChg(token.chg1d).html;
+            if (c7d) c7d.innerHTML = fmtChg(token.chg7d).html;
+            if (c1m) c1m.innerHTML = fmtChg(token.chg1m).html;
           }
           // NAV
           const navCell = tr.querySelector('.col-nav');
@@ -1684,6 +1698,10 @@
             if (tr.cells[9])  tr.cells[9].innerHTML  = fmtAbsMcap(chain.d1d !== null ? convertMcapToDisplay(chain.d1d) : null, mcapSym);
             if (tr.cells[10]) tr.cells[10].innerHTML = fmtAbsMcap(chain.d7d !== null ? convertMcapToDisplay(chain.d7d) : null, mcapSym);
             if (tr.cells[11]) tr.cells[11].innerHTML = fmtAbsMcap(chain.d1m !== null ? convertMcapToDisplay(chain.d1m) : null, mcapSym);
+          } else {
+            if (tr.cells[9])  tr.cells[9].innerHTML  = fmtChg(chain.chg1d).html;
+            if (tr.cells[10]) tr.cells[10].innerHTML = fmtChg(chain.chg7d).html;
+            if (tr.cells[11]) tr.cells[11].innerHTML = fmtChg(chain.chg1m).html;
           }
         });
         // Titre accordéon chaîne ouvert
@@ -2029,12 +2047,20 @@
         let d1d = null, d7d = null, d1m = null;
         if (merged.length) {
           const latestDate = merged[merged.length - 1].date;
-          const v1d = valueAtDate(merged, isoSubDays(latestDate, 1));
-          const v7d = valueAtDate(merged, isoSubDays(latestDate, 7));
-          const v1m = valueAtDate(merged, isoSubDays(latestDate, 30));
-          chg1d = pctChange(mcap, v1d);
-          chg7d = pctChange(mcap, v7d);
-          chg1m = pctChange(mcap, v1m);
+          const d1Date  = isoSubDays(latestDate, 1);
+          const d7Date  = isoSubDays(latestDate, 7);
+          const d1mDate = isoSubDays(latestDate, 30);
+          const v1d = valueAtDate(merged, d1Date);
+          const v7d = valueAtDate(merged, d7Date);
+          const v1m = valueAtDate(merged, d1mDate);
+          // Pct computed in display currency so FX moves are reflected
+          const mcapDisp = convertUsdAtDate(mcap, latestDate);
+          const v1dDisp  = v1d != null ? convertUsdAtDate(v1d, d1Date)  : null;
+          const v7dDisp  = v7d != null ? convertUsdAtDate(v7d, d7Date)  : null;
+          const v1mDisp  = v1m != null ? convertUsdAtDate(v1m, d1mDate) : null;
+          chg1d = pctChange(mcapDisp, v1dDisp);
+          chg7d = pctChange(mcapDisp, v7dDisp);
+          chg1m = pctChange(mcapDisp, v1mDisp);
           if (v1d != null) d1d = mcap - v1d;
           if (v7d != null) d7d = mcap - v7d;
           if (v1m != null) d1m = mcap - v1m;
@@ -2276,10 +2302,18 @@
         let chg1d = null, chg7d = null, chg1m = null, d1d = null, d7d = null, d1m = null;
         if (mcapSeries.length) {
           const ld = mcapSeries[mcapSeries.length - 1].date;
-          const v1d = valueAtDate(mcapSeries, isoSubDays(ld, 1));
-          const v7d = valueAtDate(mcapSeries, isoSubDays(ld, 7));
-          const v1m = valueAtDate(mcapSeries, isoSubDays(ld, 30));
-          chg1d = pctChange(mcap, v1d); chg7d = pctChange(mcap, v7d); chg1m = pctChange(mcap, v1m);
+          const d1Date  = isoSubDays(ld, 1);
+          const d7Date  = isoSubDays(ld, 7);
+          const d1mDate = isoSubDays(ld, 30);
+          const v1d = valueAtDate(mcapSeries, d1Date);
+          const v7d = valueAtDate(mcapSeries, d7Date);
+          const v1m = valueAtDate(mcapSeries, d1mDate);
+          // Pct computed in display currency so FX moves are reflected
+          const mcapDisp = convertUsdAtDate(mcap, ld);
+          const v1dDisp  = v1d != null ? convertUsdAtDate(v1d, d1Date)  : null;
+          const v7dDisp  = v7d != null ? convertUsdAtDate(v7d, d7Date)  : null;
+          const v1mDisp  = v1m != null ? convertUsdAtDate(v1m, d1mDate) : null;
+          chg1d = pctChange(mcapDisp, v1dDisp); chg7d = pctChange(mcapDisp, v7dDisp); chg1m = pctChange(mcapDisp, v1mDisp);
           if (v1d != null) d1d = mcap - v1d;
           if (v7d != null) d7d = mcap - v7d;
           if (v1m != null) d1m = mcap - v1m;
