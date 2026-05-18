@@ -22,13 +22,11 @@ from collections import defaultdict
 from datetime import datetime, timezone
 
 EXPERT_BASE           = "https://api.stellar.expert"
-STELLAR_SCALE_DEFAULT = 10 ** 7
+STELLAR_SCALE_DEFAULT = 10 ** 5
 
-# Tokens that use fewer than 7 decimal places on Stellar.
-# UKTBL is a Stellar Asset Contract (SAC) with 5 decimals.
-STELLAR_SCALES = {
-    'uktbl': 10 ** 5,
-}
+# All 9 Spiko Stellar tokens are Stellar Asset Contracts (SAC) with 5 decimal
+# places (confirmed 2026-05-10 via Soroban RPC getLedgerEntries).
+STELLAR_SCALES = {}
 
 TOKENS = {
     'eutbl':    ('CBGV2QFQBBGEQRUKUMCPO3SZOHDDYO6SCP5CH6TW7EALKVHCXTMWDDOF', 'EUR'),
