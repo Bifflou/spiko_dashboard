@@ -1,13 +1,13 @@
 {
   "eutbl": {
-    "nav": 1.051716,
+    "nav": 1.051774,
     "currency": "EUR",
-    "updated": "2026-05-17"
+    "updated": "2026-05-18"
   },
   "ustbl": {
-    "nav": 1.083478,
+    "nav": 1.083774,
     "currency": "USD",
-    "updated": "2026-05-17"
+    "updated": "2026-05-18"
   },
   "uktbl": {
     "nav": 1.018,
@@ -30,7 +30,7 @@
     "updated": "2026-05-18"
   },
   "eursafo": {
-    "nav": 1.004482,
+    "nav": 1.005,
     "currency": "EUR",
     "updated": "2026-05-18"
   },
