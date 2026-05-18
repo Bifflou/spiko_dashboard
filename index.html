@@ -1276,13 +1276,22 @@
           ['right', 'left'].forEach(side => {
             const grp = items.filter(d => d.isRight === (side === 'right')).sort((a, b) => a.adjY - b.adjY);
             if (grp.length < 2) return;
-            const centerY = grp.reduce((s, d) => s + d.adjY, 0) / grp.length;
-            const totalH  = (grp.length - 1) * MIN_GAP;
-            grp.forEach((d, k) => { d.adjY = centerY - totalH / 2 + k * MIN_GAP; });
-            const topOver = MARGIN - grp[0].adjY;
-            if (topOver > 0) grp.forEach(d => d.adjY += topOver);
-            const botOver = grp[grp.length - 1].adjY - (chart.height - MARGIN);
-            if (botOver > 0) grp.forEach(d => d.adjY -= botOver);
+            const availH = chart.height - 2 * MARGIN;
+            const totalH = (grp.length - 1) * MIN_GAP;
+            if (totalH > availH) {
+              // Too many labels to fit at MIN_GAP — spread evenly across available height
+              const step = availH / (grp.length - 1);
+              grp.forEach((d, k) => { d.adjY = MARGIN + k * step; });
+            } else {
+              // Normal: center the group then push away from edges (one-pass, no fight)
+              const centerY = grp.reduce((s, d) => s + d.adjY, 0) / grp.length;
+              const top0    = centerY - totalH / 2;
+              const bot0    = top0 + totalH;
+              const shift   = top0 < MARGIN ? MARGIN - top0
+                            : bot0 > chart.height - MARGIN ? (chart.height - MARGIN) - bot0
+                            : 0;
+              grp.forEach((d, k) => { d.adjY = top0 + shift + k * MIN_GAP; });
+            }
           });
 
           items.forEach(({ x1, y1, xCol, xTick, adjY, isRight, label, value, color }) => {
