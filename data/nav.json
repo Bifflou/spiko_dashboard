@@ -10,7 +10,7 @@
     "updated": "2026-09-07"
   },
   "uktbl": {
-    "nav": 1.034,
+    "nav": 1.033,
     "currency": "GBP",
     "updated": "2026-10-20"
   },
@@ -30,7 +30,7 @@
     "updated": "2026-10-20"
   },
   "eursafo": {
-    "nav": 1.015,
+    "nav": 1.014721,
     "currency": "EUR",
     "updated": "2026-10-20"
   },
@@ -40,7 +40,7 @@
     "updated": "2026-10-20"
   },
   "chfsafo": {
-    "nav": 1.003137,
+    "nav": 1.0,
     "currency": "CHF",
     "updated": "2026-10-20"
   }
