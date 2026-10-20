@@ -1,8 +1,14 @@
 {
   "eutbl": {
-    "last_aggr_round": 701
+    "last_aggr_round": 741
   },
   "ustbl": {
-    "last_aggr_round": 731
+    "last_aggr_round": 781
+  },
+  "safo": {
+    "last_aggr_round": 124
+  },
+  "eursafo": {
+    "last_aggr_round": 124
   }
 }

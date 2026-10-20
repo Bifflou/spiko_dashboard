@@ -10,15 +10,21 @@ Outputs:
   data/nav.json          – latest NAV per token (for dashboard table display)
   data/nav_state.json    – last fetched aggregatorRoundId per token
 
-Chainlink NAVLink feeds (Ethereum mainnet, phaseId=1, 6 decimals, daily publication):
-  EUTBL  → 0xfD628af590c4150A9651C1f4ddD0b4f532B703ae  EUR
-  USTBL  → 0x477e363c51Ab0C4D13B22CD6B57D56d4a3Cb7Abe  USD
+Chainlink NAVLink feeds (Ethereum mainnet proxies, phaseId=1, 6 decimals, daily publication):
+  EUTBL   → 0xfD628af590c4150A9651C1f4ddD0b4f532B703ae  EUR  (data.chain.link/feeds/ethereum/mainnet/eutbl-nav)
+  USTBL   → 0x477e363c51Ab0C4D13B22CD6B57D56d4a3Cb7Abe  USD  (…/ustbl-nav)
+  SAFO    → 0xC1E5FA6d48ba11cA163b03f2aBf843471eB7B2fB  USD  (…/safo-nav, rounds start 2026-06-30)
+  eurSAFO → 0x799fdc55150583b5Baa0b47065E1C901862c95d5  EUR  (…/eursafo-nav, rounds start 2026-06-30)
 
-Other oracles deployed but no data published yet (will activate automatically):
+Other oracles deployed but not listed on data.chain.link yet:
   UKTBL    → 0x903d5990119bc799423e9c25c56518ba7dd19474  GBP
   SPKCC    → 0x99f70a0e1786402a6796c6b0aa997ef340a5c6da  USD
   eurSPKCC → 0x0e389c83bc1d16d86412476f6103027555c03265  EUR
-  SAFO / eurSAFO / gbpSAFO / chfSAFO → oracle addresses TBD
+  gbpSAFO / chfSAFO → oracle addresses TBD
+
+When a feed starts after launch, the CoinGecko entries already stored in
+nav_history.json for the earlier period are kept (process_feed only replaces
+dates on/after the first Chainlink round).
 
 Pre-Chainlink gap filling (linear interpolation):
   For tokens where the Chainlink feed started after fund launch, we interpolate
@@ -33,10 +39,13 @@ import requests
 import time
 from datetime import datetime, timedelta, timezone
 
+# Public RPCs that accept JSON-RPC batches of ≥25 calls (tested 2026-10-20).
+# ankr now requires an API key; cloudflare caps batches at 10 and errors out.
 ETH_RPC_CANDIDATES = [
     "https://ethereum.publicnode.com",
-    "https://rpc.ankr.com/eth",
-    "https://cloudflare-eth.com",
+    "https://ethereum-rpc.publicnode.com",
+    "https://rpc.mevblocker.io",
+    "https://eth-mainnet.public.blastapi.io",
 ]
 
 SEL_LATEST_ROUND = "0xfeaf968c"   # latestRoundData()
@@ -46,19 +55,19 @@ SEL_GET_ROUND    = "0x9a6fc8f5"   # getRoundData(uint80)
 # (oracle_address, currency, phase_id)
 # Add entries here as feeds go live. phase_id=1 for all current Spiko NAVLink feeds.
 NAV_FEEDS = {
-    "eutbl": ("0xfD628af590c4150A9651C1f4ddD0b4f532B703ae", "EUR", 1),
-    "ustbl": ("0x477e363c51Ab0C4D13B22CD6B57D56d4a3Cb7Abe", "USD", 1),
+    "eutbl":   ("0xfD628af590c4150A9651C1f4ddD0b4f532B703ae", "EUR", 1),
+    "ustbl":   ("0x477e363c51Ab0C4D13B22CD6B57D56d4a3Cb7Abe", "USD", 1),
+    "safo":    ("0xC1E5FA6d48ba11cA163b03f2aBf843471eB7B2fB", "USD", 1),
+    "eursafo": ("0x799fdc55150583b5Baa0b47065E1C901862c95d5", "EUR", 1),
     # Uncomment + add oracle address when data is published:
     # "uktbl":    ("0x903d5990119bc799423e9c25c56518ba7dd19474", "GBP", 1),
     # "spkcc":    ("0x99f70a0e1786402a6796c6b0aa997ef340a5c6da", "USD", 1),
     # "eurspkcc": ("0x0e389c83bc1d16d86412476f6103027555c03265", "EUR", 1),
-    # "safo":     ("0x...", "USD", 1),
-    # "eursafo":  ("0x...", "EUR", 1),
     # "gbpsafo":  ("0x...", "GBP", 1),
     # "chfsafo":  ("0x...", "CHF", 1),
 }
 
-BATCH_SIZE = 50   # getRoundData calls per JSON-RPC batch request
+BATCH_SIZE = 25   # getRoundData calls per JSON-RPC batch request
 
 # Fund launch dates for pre-Chainlink/pre-CoinGecko gap filling.
 # NAV at launch is 1.0 by definition (subscription at par).
@@ -82,8 +91,6 @@ CG_FEEDS = {
     "uktbl":    ("spiko-uk-t-bills-money-market-fund",                    "gbp"),
     "spkcc":    ("spiko-digital-assets-cash-carry-fund",                  "usd"),
     "eurspkcc": ("spiko-digital-assets-cash-carry-fund-euro-share-class", "eur"),
-    "safo":     ("safo",                                                  "usd"),
-    "eursafo":  ("spiko-amundi-overnight-swap-fund-eur",                  "eur"),
     "gbpsafo":  ("spiko-amundi-overnight-swap-fund-gbp",                  "gbp"),
     "chfsafo":  ("spiko-amundi-overnight-swap-fund-chf",                  "chf"),
 }
@@ -132,36 +139,36 @@ def save_json(path, data):
 
 # ── RPC helpers ────────────────────────────────────────────────────────────────
 
-def pick_rpc():
-    """Return the first responsive public Ethereum RPC."""
-    probe_addr = "0xfD628af590c4150A9651C1f4ddD0b4f532B703ae"
-    for rpc in ETH_RPC_CANDIDATES:
-        try:
-            r = requests.post(
-                rpc,
-                json={"jsonrpc": "2.0", "method": "eth_call",
-                      "params": [{"to": probe_addr, "data": SEL_DECIMALS}, "latest"], "id": 1},
-                headers={"Content-Type": "application/json"}, timeout=10,
-            )
-            res = r.json().get("result", "")
-            if res and res != "0x":
-                print(f"  RPC: {rpc}")
-                return rpc
-        except Exception as e:
-            print(f"  {rpc}: {e}")
-    raise RuntimeError("No responsive Ethereum RPC found")
+def _valid_rpc_response(payload, data):
+    if isinstance(payload, list):
+        return (isinstance(data, list) and len(data) == len(payload)
+                and all(isinstance(x, dict) and x.get("result") not in (None, "", "0x") for x in data))
+    return isinstance(data, dict) and data.get("result") not in (None, "", "0x")
 
-def eth_call(rpc, to, data):
-    r = requests.post(
-        rpc,
-        json={"jsonrpc": "2.0", "method": "eth_call",
-              "params": [{"to": to, "data": data}, "latest"], "id": 1},
-        headers={"Content-Type": "application/json"}, timeout=15,
-    )
-    r.raise_for_status()
-    return r.json().get("result", "")
+def rpc_post(payload, timeout=30):
+    """POST a JSON-RPC payload, falling back across public RPCs (rate limits return
+    null bodies or per-item errors, so the response is validated, not just the status)."""
+    last_err = None
+    for attempt in range(3):
+        for rpc in ETH_RPC_CANDIDATES:
+            try:
+                r = requests.post(rpc, json=payload,
+                                  headers={"Content-Type": "application/json"}, timeout=timeout)
+                data = r.json()
+                if _valid_rpc_response(payload, data):
+                    return data
+                last_err = f"{rpc} → HTTP {r.status_code}: {r.text[:150]}"
+            except Exception as e:
+                last_err = f"{rpc} → {type(e).__name__}: {e}"
+            print(f"    RPC failed: {last_err}")
+        time.sleep(5 * (attempt + 1))
+    raise RuntimeError(f"All Ethereum RPCs failed — last error: {last_err}")
 
-def batch_get_rounds(rpc, oracle_addr, round_ids):
+def eth_call(to, data):
+    return rpc_post({"jsonrpc": "2.0", "method": "eth_call",
+                     "params": [{"to": to, "data": data}, "latest"], "id": 1})["result"]
+
+def batch_get_rounds(oracle_addr, round_ids):
     """
     Batch-fetch getRoundData for a list of full round IDs.
     Returns {round_id: (answer_raw, updated_at_unix)}.
@@ -179,12 +186,7 @@ def batch_get_rounds(rpc, oracle_addr, round_ids):
             }
             for rid in chunk
         ]
-        resp = requests.post(
-            rpc, json=batch_req,
-            headers={"Content-Type": "application/json"}, timeout=30,
-        )
-        resp.raise_for_status()
-        for item in resp.json():
+        for item in rpc_post(batch_req):
             rid = item["id"]
             res = item.get("result", "")
             if res and len(res) > 2:
@@ -199,7 +201,7 @@ def batch_get_rounds(rpc, oracle_addr, round_ids):
 
 # ── Per-feed processing ────────────────────────────────────────────────────────
 
-def process_feed(rpc, token_id, oracle_addr, currency, phase_id,
+def process_feed(token_id, oracle_addr, currency, phase_id,
                  last_aggr_round, existing_series):
     """
     Fetch new rounds since last_aggr_round and merge with existing_series.
@@ -210,11 +212,11 @@ def process_feed(rpc, token_id, oracle_addr, currency, phase_id,
     print(f"\n[{token_id.upper()} — {currency}]")
 
     # decimals()
-    dec_hex  = eth_call(rpc, oracle_addr, SEL_DECIMALS)
+    dec_hex  = eth_call(oracle_addr, SEL_DECIMALS)
     decimals = int(dec_hex, 16) if dec_hex and dec_hex != "0x" else 6
 
     # latestRoundData()
-    res = eth_call(rpc, oracle_addr, SEL_LATEST_ROUND)
+    res = eth_call(oracle_addr, SEL_LATEST_ROUND)
     if not res or len(res) <= 2:
         print("  No data from feed")
         return existing_series, last_aggr_round, None
@@ -245,7 +247,7 @@ def process_feed(rpc, token_id, oracle_addr, currency, phase_id,
     full_ids     = [base + i for i in new_aggr_ids]
     print(f"  Fetching rounds {start_aggr}..{latest_aggr_id} ({len(new_aggr_ids)} rounds)")
 
-    raw_rounds = batch_get_rounds(rpc, oracle_addr, full_ids)
+    raw_rounds = batch_get_rounds(oracle_addr, full_ids)
 
     # Deduplicate to daily series: keep last round per date
     by_date = {}  # date → (aggr_id, nav)
@@ -407,11 +409,6 @@ def main():
     existing_nav     = load_json(nav_file,     default={})  # {token_id: {nav, currency, updated}}
 
     print("=== Fetching Spiko NAV history (Chainlink) ===")
-    try:
-        rpc = pick_rpc()
-    except RuntimeError as e:
-        print(f"  {e} — keeping existing data")
-        return
 
     new_history = dict(existing_history)
     new_nav     = dict(existing_nav)
@@ -424,7 +421,7 @@ def main():
             launch_date = LAUNCH_DATES.get(token_id)
 
             merged, last_aggr_new, current_entry = process_feed(
-                rpc, token_id, oracle_addr, currency, phase_id, last_aggr, series,
+                token_id, oracle_addr, currency, phase_id, last_aggr, series,
             )
 
             # Always ensure the series starts from the fund's launch date
@@ -440,6 +437,7 @@ def main():
         except Exception as e:
             import traceback
             print(f"  ERROR for {token_id}: {e}")
+            print(f"::warning title=Chainlink NAV {token_id.upper()}::{e}")
             traceback.print_exc()
 
     # ── CoinGecko section (tokens without Chainlink feed) ──────────────────────
