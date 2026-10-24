@@ -1,47 +1,47 @@
 {
   "eutbl": {
-    "nav": 1.06131,
+    "nav": 1.061537,
     "currency": "EUR",
-    "updated": "2026-10-22"
+    "updated": "2026-10-23"
   },
   "ustbl": {
-    "nav": 1.100187,
+    "nav": 1.100315,
     "currency": "USD",
-    "updated": "2026-10-22"
+    "updated": "2026-10-23"
   },
   "uktbl": {
     "nav": 1.034,
     "currency": "GBP",
-    "updated": "2026-10-23"
+    "updated": "2026-10-24"
   },
   "spkcc": {
     "nav": 1.028,
     "currency": "USD",
-    "updated": "2026-10-23"
+    "updated": "2026-10-24"
   },
   "eurspkcc": {
-    "nav": 0.999118,
+    "nav": 1.001616,
     "currency": "EUR",
-    "updated": "2026-10-23"
+    "updated": "2026-10-24"
   },
   "safo": {
-    "nav": 1.025214,
+    "nav": 1.025573,
     "currency": "USD",
-    "updated": "2026-10-22"
+    "updated": "2026-10-23"
   },
   "eursafo": {
-    "nav": 1.015474,
+    "nav": 1.015707,
     "currency": "EUR",
-    "updated": "2026-10-22"
+    "updated": "2026-10-23"
   },
   "gbpsafo": {
-    "nav": 1.025,
+    "nav": 1.026,
     "currency": "GBP",
-    "updated": "2026-10-23"
+    "updated": "2026-10-24"
   },
   "chfsafo": {
     "nav": 1.0,
     "currency": "CHF",
-    "updated": "2026-10-23"
+    "updated": "2026-10-24"
   }
 }
